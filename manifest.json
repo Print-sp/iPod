@@ -1,0 +1,26 @@
+{
+  "name": "iPod Classic",
+  "short_name": "iPod",
+  "description": "Central de Mídia iPod Classic (Músicas, Vídeos, Fotos, Cover Flow e YouTube)",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "portrait",
+  "background_color": "#dcdfe4",
+  "theme_color": "#dcdfe4",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
