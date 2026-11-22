@@ -280,9 +280,9 @@ function startLocalServer(preferredPort = 3456) {
       try {
         reqUrl = new URL(req.url || '/', `http://127.0.0.1:${activePort}`);
       } catch (_) {
-        res.writeHead(400);
-        res.end('Bad request');
-        return;
+        // Some hosting proxies can pass a non-standard request target.
+        // Treat it as the site root instead of returning a blank 400 page.
+        reqUrl = new URL('/');
       }
 
       const pathname = decodeURIComponent(reqUrl.pathname);
