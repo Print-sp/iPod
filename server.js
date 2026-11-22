@@ -378,7 +378,8 @@ function getLocalLanIps() {
 }
 
 if (require.main === module) {
-  startLocalServer(3456).then(({ port }) => {
+  const runtimePort = Number(process.env.PORT) || 3456;
+  startLocalServer(runtimePort).then(({ port }) => {
     const url = `http://localhost:${port}`;
     const lanIps = getLocalLanIps();
     console.log(`\n==================================================`);
