@@ -154,6 +154,15 @@
 
     // Dados da Biblioteca
     deletedBuiltinIds: [],
+    songEdits: {},
+    songEditsByName: {},
+    customPlaylists: [
+      {
+        id: 'pl-favoritas-2008',
+        name: 'Favoritas 2008',
+        songIds: ['jj-1', 'jj-2', 'dp-1', 'cp-1', 'br-1']
+      }
+    ],
     songs: [
       {
         id: 'jj-1',
@@ -341,6 +350,7 @@
     npTrackIndex: document.getElementById('np-track-index'),
     npShuffleBadge: document.getElementById('np-shuffle-badge'),
     npRepeatBadge: document.getElementById('np-repeat-badge'),
+    npEditBtn: document.getElementById('np-edit-btn'),
     npDeleteBtn: document.getElementById('np-delete-btn'),
     npTimeRow: document.getElementById('np-time-row'),
     npCurrentTime: document.getElementById('np-current-time'),
@@ -402,7 +412,29 @@
 
     onlineModal: document.getElementById('online-modal'),
     btnCloseModal: document.getElementById('btn-close-modal'),
-    btnAddCustomUrl: document.getElementById('btn-add-custom-url')
+    btnAddCustomUrl: document.getElementById('btn-add-custom-url'),
+
+    editSongModal: document.getElementById('edit-song-modal'),
+    btnCloseEditSong: document.getElementById('btn-close-edit-song'),
+    editSongSelect: document.getElementById('edit-song-select'),
+    editSongTitle: document.getElementById('edit-song-title'),
+    editSongArtist: document.getElementById('edit-song-artist'),
+    editSongAlbum: document.getElementById('edit-song-album'),
+    editSongCoverPreview: document.getElementById('edit-song-cover-preview'),
+    editSongCoverFile: document.getElementById('edit-song-cover-file'),
+    editSongCoverUrl: document.getElementById('edit-song-cover-url'),
+    editSongCoverScope: document.getElementById('edit-song-cover-scope'),
+    btnSaveEditSong: document.getElementById('btn-save-edit-song'),
+
+    playlistModal: document.getElementById('playlist-modal'),
+    playlistModalTitle: document.getElementById('playlist-modal-title'),
+    btnClosePlaylistModal: document.getElementById('btn-close-playlist-modal'),
+    playlistEditId: document.getElementById('playlist-edit-id'),
+    playlistNameInput: document.getElementById('playlist-name-input'),
+    btnPlaylistSelectAll: document.getElementById('btn-playlist-select-all'),
+    btnPlaylistClearAll: document.getElementById('btn-playlist-clear-all'),
+    playlistSongsChecklist: document.getElementById('playlist-songs-checklist'),
+    btnSavePlaylist: document.getElementById('btn-save-playlist')
   };
 
   // --------------------------------------------------------------------------
@@ -597,6 +629,10 @@
 
     state.songs = state.songs.filter((s) => s.id !== songId);
     state.playlist = state.playlist.filter((s) => s.id !== songId);
+    delete state.songEdits[songId];
+    state.customPlaylists.forEach((pl) => {
+      pl.songIds = pl.songIds.filter((id) => id !== songId);
+    });
 
     if (BUILTIN_IDS.has(songId) && !state.deletedBuiltinIds.includes(songId)) {
       state.deletedBuiltinIds.push(songId);
@@ -665,9 +701,15 @@
 
   function restoreDefaultLibrary() {
     state.deletedBuiltinIds = [];
+    state.songEdits = {};
     const existingSongIds = new Set(state.songs.map((s) => s.id));
     DEFAULT_SONGS.forEach((s) => {
-      if (!existingSongIds.has(s.id)) state.songs.push({ ...s });
+      if (!existingSongIds.has(s.id)) {
+        state.songs.push({ ...s });
+      } else {
+        const current = state.songs.find((item) => item.id === s.id);
+        if (current) Object.assign(current, s);
+      }
     });
     const existingVideoIds = new Set(state.videos.map((v) => v.id));
     DEFAULT_VIDEOS.forEach((v) => {
@@ -766,50 +808,39 @@
           action: () => openCoverFlowView()
         },
         {
+          label: 'Playlists',
+          getSub: () => `${state.customPlaylists.length}`,
+          previewType: 'music',
+          action: () => pushMenu(buildPlaylistsMenu())
+        },
+        {
           label: 'Todas as Músicas',
           previewType: 'music',
-          action: () => pushMenu(buildSongListMenu('Músicas', state.songs))
+          action: () => pushMenu(buildSongListMenu('Músicas', () => state.songs))
         },
         {
           label: 'Artistas',
           previewType: 'music',
-          action: () => {
-            const artists = getUniqueArtists();
-            pushMenu({
-              title: 'Artistas',
-              split: false,
-              selectedIndex: 0,
-              items: artists.map((a) => ({
-                label: a.artist,
-                sub: `${a.songs.length}`,
-                action: () => pushMenu(buildSongListMenu(a.artist, a.songs))
-              }))
-            });
-          }
+          action: () => pushMenu(buildArtistsMenu())
         },
         {
           label: 'Álbuns',
           previewType: 'music',
-          action: () => {
-            const albums = getUniqueAlbums();
-            pushMenu({
-              title: 'Álbuns',
-              split: false,
-              selectedIndex: 0,
-              items: albums.map((al) => ({
-                label: al.album,
-                sub: al.artist,
-                action: () => pushMenu(buildSongListMenu(al.album, al.songs))
-              }))
-            });
-          }
+          action: () => pushMenu(buildAlbumsMenu())
+        },
+        {
+          label: '✏️ Editar Música / Capa',
+          previewType: 'music',
+          action: () => pushMenu(buildEditSongsMenu())
         },
         {
           label: 'Mais Bem Avaliadas',
           previewType: 'music',
           action: () => {
-            const top = state.songs.filter((s) => (s.rating || 0) >= 5);
-            pushMenu(buildSongListMenu('★★★★★ Favoritas', top.length ? top : state.songs));
+            pushMenu(buildSongListMenu('★★★★★ Favoritas', () => {
+              const top = state.songs.filter((s) => (s.rating || 0) >= 5);
+              return top.length ? top : state.songs;
+            }));
           }
         },
         {
@@ -836,8 +867,268 @@
     };
   }
 
-  function buildSongListMenu(title, songsList) {
-    let localSongs = [...songsList];
+  function buildArtistsMenu() {
+    const menu = {
+      title: 'Artistas',
+      split: false,
+      selectedIndex: 0,
+      items: []
+    };
+    const buildItems = () => {
+      const artists = getUniqueArtists();
+      if (!artists.length) {
+        return [{ label: 'Nenhum artista na biblioteca', hasArrow: false, action: () => popMenu() }];
+      }
+      return artists.map((a) => ({
+        label: a.artist,
+        sub: `${a.songs.length}`,
+        hasArrow: true,
+        action: () => pushMenu(buildSongListMenu(a.artist, () => state.songs.filter((s) => (s.artist || 'Artista Desconhecido') === a.artist))),
+        onEdit: () => {
+          if (a.songs[0]) openEditSongModal(a.songs[0].id, 'artist');
+        }
+      }));
+    };
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
+  }
+
+  function buildAlbumsMenu() {
+    const menu = {
+      title: 'Álbuns',
+      split: false,
+      selectedIndex: 0,
+      items: []
+    };
+    const buildItems = () => {
+      const albums = getUniqueAlbums();
+      if (!albums.length) {
+        return [{ label: 'Nenhum álbum na biblioteca', hasArrow: false, action: () => popMenu() }];
+      }
+      return albums.map((al) => ({
+        label: al.album,
+        sub: al.artist,
+        hasArrow: true,
+        action: () => pushMenu(buildSongListMenu(al.album, () => state.songs.filter((s) => (s.album || 'Álbum Desconhecido') === al.album && (s.artist || 'Artista Desconhecido') === al.artist))),
+        onEdit: () => {
+          if (al.songs[0]) openEditSongModal(al.songs[0].id, 'album');
+        }
+      }));
+    };
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
+  }
+
+  function buildEditSongsMenu() {
+    const menu = {
+      title: 'Editar Música / Capa',
+      split: false,
+      selectedIndex: 0,
+      items: []
+    };
+    const buildItems = () => {
+      if (!state.songs.length) {
+        return [{ label: 'Nenhuma música para editar', hasArrow: false, action: () => popMenu() }];
+      }
+      return state.songs.map((song) => ({
+        label: `✏️ ${song.title}`,
+        sub: `${song.artist} • ${song.album}`,
+        hasArrow: true,
+        action: () => openEditSongModal(song.id, 'song')
+      }));
+    };
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
+  }
+
+  function getPlaylistSongs(pl) {
+    if (!pl || !Array.isArray(pl.songIds)) return [];
+    const map = new Map(state.songs.map((s) => [s.id, s]));
+    return pl.songIds.map((id) => map.get(id)).filter(Boolean);
+  }
+
+  function deletePlaylistById(playlistId) {
+    state.customPlaylists = state.customPlaylists.filter((p) => p.id !== playlistId);
+    savePersistedState();
+    refreshAllMenusInStack();
+  }
+
+  function buildPlaylistsMenu() {
+    const menu = {
+      title: 'Playlists',
+      split: false,
+      selectedIndex: 0,
+      items: []
+    };
+    const buildItems = () => {
+      const items = [
+        {
+          label: '➕ Criar Nova Playlist...',
+          hasArrow: true,
+          action: () => openPlaylistModal()
+        }
+      ];
+      state.customPlaylists.forEach((pl) => {
+        const songsInPl = getPlaylistSongs(pl);
+        items.push({
+          label: `🎶 ${pl.name}`,
+          sub: `${songsInPl.length}`,
+          hasArrow: true,
+          action: () => pushMenu(buildSinglePlaylistMenu(pl.id)),
+          onEdit: () => openPlaylistModal(pl.id),
+          onDelete: () => {
+            deletePlaylistById(pl.id);
+            menu.refresh();
+            renderCurrentMenu();
+          }
+        });
+      });
+      return items;
+    };
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
+  }
+
+  function buildSinglePlaylistMenu(playlistId) {
+    const menu = {
+      title: 'Playlist',
+      split: false,
+      selectedIndex: 0,
+      items: []
+    };
+    const buildItems = () => {
+      const pl = state.customPlaylists.find((p) => p.id === playlistId);
+      if (!pl) {
+        return [{ label: 'Playlist não encontrada', hasArrow: false, action: () => popMenu() }];
+      }
+      menu.title = pl.name;
+      const songsInPl = getPlaylistSongs(pl);
+      const items = [
+        {
+          label: '▶️ Tocar Playlist',
+          sub: `${songsInPl.length} músicas`,
+          hasArrow: true,
+          action: () => {
+            if (songsInPl.length) playPlaylist(songsInPl, 0);
+          }
+        },
+        {
+          label: '🔀 Ordem Aleatória',
+          hasArrow: true,
+          action: () => {
+            if (songsInPl.length) {
+              const shuffled = [...songsInPl].sort(() => Math.random() - 0.5);
+              playPlaylist(shuffled, 0);
+            }
+          }
+        },
+        {
+          label: '✏️ Editar / Escolher Músicas...',
+          hasArrow: true,
+          action: () => openPlaylistModal(pl.id)
+        },
+        {
+          label: '➕ Adicionar Música pelo Menu...',
+          hasArrow: true,
+          action: () => pushMenu(buildAddSongsToPlaylistMenu(pl.id))
+        }
+      ];
+
+      songsInPl.forEach((song, idx) => {
+        items.push({
+          label: song.title,
+          sub: song.artist,
+          hasArrow: true,
+          action: () => playPlaylist(songsInPl, idx),
+          onEdit: () => openEditSongModal(song.id, 'song'),
+          onDelete: () => {
+            pl.songIds = pl.songIds.filter((id) => id !== song.id);
+            savePersistedState();
+            menu.refresh();
+            renderCurrentMenu();
+          }
+        });
+      });
+
+      items.push({
+        label: '🗑️ Excluir esta Playlist',
+        hasArrow: false,
+        action: () => {
+          deletePlaylistById(pl.id);
+          popMenu();
+        }
+      });
+
+      return items;
+    };
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
+  }
+
+  function buildAddSongsToPlaylistMenu(playlistId) {
+    const menu = {
+      title: 'Adicionar à Playlist',
+      split: false,
+      selectedIndex: 0,
+      items: []
+    };
+    const buildItems = () => {
+      const pl = state.customPlaylists.find((p) => p.id === playlistId);
+      if (!pl || !state.songs.length) {
+        return [{ label: 'Nenhuma música disponível', hasArrow: false, action: () => popMenu() }];
+      }
+      return state.songs.map((song) => {
+        const included = pl.songIds.includes(song.id);
+        return {
+          label: `${included ? '✓ ' : '+ '}${song.title}`,
+          sub: song.artist,
+          hasArrow: false,
+          action: () => {
+            if (pl.songIds.includes(song.id)) {
+              pl.songIds = pl.songIds.filter((id) => id !== song.id);
+            } else {
+              pl.songIds.push(song.id);
+            }
+            savePersistedState();
+            menu.refresh();
+            renderCurrentMenu();
+          }
+        };
+      });
+    };
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
+  }
+
+  function buildSongListMenu(title, songsListOrGetter) {
+    const getSongs = typeof songsListOrGetter === 'function'
+      ? songsListOrGetter
+      : () => songsListOrGetter;
+    let localSongs = [...getSongs()];
     const menu = {
       title,
       split: false,
@@ -845,6 +1136,7 @@
       items: []
     };
     const buildItems = () => {
+      localSongs = [...getSongs()];
       if (!localSongs.length) {
         return [{ label: 'Nenhuma música nesta lista', hasArrow: false, action: () => popMenu() }];
       }
@@ -853,9 +1145,9 @@
         sub: song.artist,
         hasArrow: true,
         action: () => playPlaylist(localSongs, idx),
+        onEdit: () => openEditSongModal(song.id, 'song'),
         onDelete: () => {
           deleteSongById(song.id);
-          localSongs = localSongs.filter((s) => s.id !== song.id);
           menu.refresh();
           renderCurrentMenu();
         }
@@ -1390,6 +1682,19 @@
     }
   }
 
+  function refreshAllMenusInStack() {
+    state.navStack.forEach((m) => {
+      if (m && typeof m.refresh === 'function') m.refresh();
+    });
+    if (state.currentView === 'split' || state.currentView === 'full') {
+      renderCurrentMenu();
+    } else if (state.currentView === 'coverflow') {
+      state.coverFlowAlbums = getUniqueAlbums();
+      state.coverFlowIndex = Math.max(0, Math.min(state.coverFlowAlbums.length - 1, state.coverFlowIndex));
+      renderCoverFlow();
+    }
+  }
+
   function renderCurrentMenu() {
     const menu = currentMenu();
     if (!menu) return;
@@ -1418,6 +1723,21 @@
         arrowSpan.className = 'menu-item-arrow';
         arrowSpan.textContent = '›';
         li.appendChild(arrowSpan);
+      }
+
+      if (typeof item.onEdit === 'function') {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'menu-item-edit';
+        editBtn.textContent = '✎';
+        editBtn.title = 'Editar / Trocar Capa';
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (state.locked) return;
+          playWheelClick();
+          item.onEdit();
+        });
+        li.appendChild(editBtn);
       }
 
       if (typeof item.onDelete === 'function') {
@@ -1631,10 +1951,12 @@
       dom.npTrackIndex.textContent = '0 of 0';
       dom.npShuffleBadge.textContent = '';
       dom.npRepeatBadge.textContent = '';
+      if (dom.npEditBtn) dom.npEditBtn.classList.add('hidden');
       if (dom.npDeleteBtn) dom.npDeleteBtn.classList.add('hidden');
       return;
     }
 
+    if (dom.npEditBtn) dom.npEditBtn.classList.remove('hidden');
     if (dom.npDeleteBtn) dom.npDeleteBtn.classList.remove('hidden');
 
     const coverUrl = track.cover || jackCover;
@@ -1656,6 +1978,30 @@
 
     dom.npScrubberDiamond.classList.toggle('hidden', state.npMode !== 'scrub');
     dom.npVolumeFill.style.width = `${Math.round(state.volume * 100)}%`;
+  }
+
+  if (dom.npEditBtn) {
+    dom.npEditBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.locked) return;
+      const track = state.playlist[state.currentTrackIndex] || state.songs[0];
+      if (!track) return;
+      playWheelClick();
+      openEditSongModal(track.id, 'song');
+    });
+  }
+
+  if (dom.npArtwork) {
+    dom.npArtwork.style.cursor = 'pointer';
+    dom.npArtwork.title = 'Clique para trocar a capa (thumb) ou editar a música';
+    dom.npArtwork.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.locked) return;
+      const track = state.playlist[state.currentTrackIndex] || state.songs[0];
+      if (!track) return;
+      playWheelClick();
+      openEditSongModal(track.id, 'song');
+    });
   }
 
   if (dom.npDeleteBtn) {
@@ -2608,7 +2954,13 @@
 
   // Atalhos de Teclado
   window.addEventListener('keydown', (e) => {
-    if (!dom.onlineModal.classList.contains('hidden')) return;
+    if (
+      !dom.onlineModal.classList.contains('hidden') ||
+      (dom.editSongModal && !dom.editSongModal.classList.contains('hidden')) ||
+      (dom.playlistModal && !dom.playlistModal.classList.contains('hidden'))
+    ) {
+      return;
+    }
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -2670,13 +3022,25 @@
           trackTitle = parts.slice(1).join(' - ').trim();
         }
 
+        let cover = createCoverArt('#1e3a8a', '#3b82f6', trackTitle.slice(0, 16), artist.slice(0, 18), '🎵');
+        let album = 'Arquivos do Computador';
+        const fileKey = title.toLowerCase();
+        const savedByFile = state.songEditsByName && state.songEditsByName[fileKey];
+        if (savedByFile) {
+          if (savedByFile.title) trackTitle = savedByFile.title;
+          if (savedByFile.artist) artist = savedByFile.artist;
+          if (savedByFile.album) album = savedByFile.album;
+          if (savedByFile.cover) cover = savedByFile.cover;
+        }
+
         state.songs.unshift({
           id: 'local-s-' + Date.now() + '-' + Math.random(),
+          fileKey,
           title: trackTitle,
           artist,
-          album: 'Arquivos do Computador',
+          album,
           rating: 5,
-          cover: createCoverArt('#1e3a8a', '#3b82f6', trackTitle.slice(0, 16), artist.slice(0, 18), '🎵'),
+          cover,
           url
         });
         addedSongs++;
@@ -2968,6 +3332,265 @@
   });
 
   // --------------------------------------------------------------------------
+  // 15B. MODAL DE EDIÇÃO DE MÚSICA / CAPA & CRIADOR DE PLAYLISTS
+  // --------------------------------------------------------------------------
+  let pendingUploadedCoverDataUrl = '';
+
+  function resizeImageFileToDataUrl(file, maxSize = 300) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = maxSize;
+          canvas.height = maxSize;
+          const ctx = canvas.getContext('2d');
+          // Crop central quadrado para ficar perfeito na capa do iPod e Cover Flow
+          const side = Math.min(img.width, img.height);
+          const sx = (img.width - side) / 2;
+          const sy = (img.height - side) / 2;
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, maxSize, maxSize);
+          resolve(canvas.toDataURL('image/jpeg', 0.86));
+        };
+        img.onerror = reject;
+        img.src = ev.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function populateEditSongFields(songId) {
+    const song = state.songs.find((s) => s.id === songId) || state.songs[0];
+    if (!song) return;
+    dom.editSongSelect.value = song.id;
+    dom.editSongTitle.value = song.title || '';
+    dom.editSongArtist.value = song.artist || '';
+    dom.editSongAlbum.value = song.album || '';
+    dom.editSongCoverPreview.src = song.cover || jackCover;
+    dom.editSongCoverUrl.value = (song.cover && !song.cover.startsWith('data:')) ? song.cover : '';
+    pendingUploadedCoverDataUrl = '';
+    if (dom.editSongCoverFile) dom.editSongCoverFile.value = '';
+  }
+
+  function openEditSongModal(preselectSongId, defaultScope = 'song') {
+    if (!dom.editSongModal || !state.songs.length) return;
+    dom.editSongSelect.innerHTML = '';
+    state.songs.forEach((s) => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `${s.title} — ${s.artist}`;
+      dom.editSongSelect.appendChild(opt);
+    });
+
+    const targetId = preselectSongId ||
+      (state.playlist[state.currentTrackIndex] && state.playlist[state.currentTrackIndex].id) ||
+      state.songs[0].id;
+
+    if (dom.editSongCoverScope) {
+      dom.editSongCoverScope.value = defaultScope;
+    }
+    populateEditSongFields(targetId);
+    dom.editSongModal.classList.remove('hidden');
+  }
+
+  if (dom.editSongSelect) {
+    dom.editSongSelect.addEventListener('change', () => {
+      populateEditSongFields(dom.editSongSelect.value);
+    });
+  }
+
+  if (dom.editSongCoverFile) {
+    dom.editSongCoverFile.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const dataUrl = await resizeImageFileToDataUrl(file, 300);
+        pendingUploadedCoverDataUrl = dataUrl;
+        dom.editSongCoverPreview.src = dataUrl;
+        dom.editSongCoverUrl.value = '';
+      } catch (_) {}
+    });
+  }
+
+  if (dom.editSongCoverUrl) {
+    dom.editSongCoverUrl.addEventListener('input', () => {
+      const url = dom.editSongCoverUrl.value.trim();
+      if (url) {
+        pendingUploadedCoverDataUrl = '';
+        dom.editSongCoverPreview.src = url;
+      }
+    });
+  }
+
+  function recordSongEditPersistence(song) {
+    if (!song) return;
+    const editData = {
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      cover: song.cover
+    };
+    state.songEdits[song.id] = editData;
+    if (song.fileKey) {
+      state.songEditsByName[song.fileKey] = editData;
+    }
+  }
+
+  if (dom.btnSaveEditSong) {
+    dom.btnSaveEditSong.addEventListener('click', () => {
+      const songId = dom.editSongSelect.value;
+      const song = state.songs.find((s) => s.id === songId);
+      if (!song) return;
+
+      const oldAlbum = song.album || 'Álbum Desconhecido';
+      const oldArtist = song.artist || 'Artista Desconhecido';
+
+      const newTitle = dom.editSongTitle.value.trim() || song.title;
+      const newArtist = dom.editSongArtist.value.trim() || song.artist;
+      const newAlbum = dom.editSongAlbum.value.trim() || song.album;
+      const customUrl = dom.editSongCoverUrl.value.trim();
+      const newCover = pendingUploadedCoverDataUrl || customUrl || song.cover;
+      const scope = dom.editSongCoverScope ? dom.editSongCoverScope.value : 'song';
+
+      song.title = newTitle;
+      song.artist = newArtist;
+      song.album = newAlbum;
+      song.cover = newCover;
+      recordSongEditPersistence(song);
+
+      if (scope === 'album') {
+        state.songs.forEach((s) => {
+          if ((s.album || 'Álbum Desconhecido') === oldAlbum || (s.album || 'Álbum Desconhecido') === newAlbum) {
+            s.cover = newCover;
+            s.album = newAlbum;
+            recordSongEditPersistence(s);
+          }
+        });
+      } else if (scope === 'artist') {
+        state.songs.forEach((s) => {
+          if ((s.artist || 'Artista Desconhecido') === oldArtist || (s.artist || 'Artista Desconhecido') === newArtist) {
+            s.cover = newCover;
+            s.artist = newArtist;
+            recordSongEditPersistence(s);
+          }
+        });
+      }
+
+      savePersistedState();
+      updateNowPlayingUI();
+      refreshAllMenusInStack();
+      dom.editSongModal.classList.add('hidden');
+    });
+  }
+
+  if (dom.btnCloseEditSong) {
+    dom.btnCloseEditSong.addEventListener('click', () => dom.editSongModal.classList.add('hidden'));
+  }
+  if (dom.editSongModal) {
+    dom.editSongModal.addEventListener('click', (e) => {
+      if (e.target === dom.editSongModal) dom.editSongModal.classList.add('hidden');
+    });
+  }
+
+  // --- CRIADOR E EDITOR DE PLAYLISTS ---
+  function openPlaylistModal(playlistId = '') {
+    if (!dom.playlistModal) return;
+    const existing = playlistId ? state.customPlaylists.find((p) => p.id === playlistId) : null;
+    dom.playlistEditId.value = existing ? existing.id : '';
+    dom.playlistModalTitle.textContent = existing ? `✏️ Editar Playlist: ${existing.name}` : '🎶 Criar Nova Playlist';
+    dom.playlistNameInput.value = existing ? existing.name : '';
+
+    const selectedSet = new Set(existing ? existing.songIds : []);
+    dom.playlistSongsChecklist.innerHTML = '';
+
+    state.songs.forEach((song) => {
+      const row = document.createElement('label');
+      row.className = 'playlist-check-row';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = song.id;
+      cb.checked = selectedSet.has(song.id);
+
+      const img = document.createElement('img');
+      img.src = song.cover || jackCover;
+      img.alt = '';
+
+      const meta = document.createElement('div');
+      meta.className = 'playlist-check-meta';
+      const st = document.createElement('strong');
+      st.textContent = song.title;
+      const sp = document.createElement('span');
+      sp.textContent = `${song.artist} • ${song.album}`;
+      meta.appendChild(st);
+      meta.appendChild(sp);
+
+      row.appendChild(cb);
+      row.appendChild(img);
+      row.appendChild(meta);
+      dom.playlistSongsChecklist.appendChild(row);
+    });
+
+    dom.playlistModal.classList.remove('hidden');
+    setTimeout(() => dom.playlistNameInput.focus(), 50);
+  }
+
+  if (dom.btnPlaylistSelectAll) {
+    dom.btnPlaylistSelectAll.addEventListener('click', () => {
+      dom.playlistSongsChecklist.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.checked = true;
+      });
+    });
+  }
+
+  if (dom.btnPlaylistClearAll) {
+    dom.btnPlaylistClearAll.addEventListener('click', () => {
+      dom.playlistSongsChecklist.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.checked = false;
+      });
+    });
+  }
+
+  if (dom.btnSavePlaylist) {
+    dom.btnSavePlaylist.addEventListener('click', () => {
+      const editId = dom.playlistEditId.value;
+      const name = dom.playlistNameInput.value.trim() || `Playlist ${state.customPlaylists.length + 1}`;
+      const checkedIds = Array.from(
+        dom.playlistSongsChecklist.querySelectorAll('input[type="checkbox"]:checked')
+      ).map((cb) => cb.value);
+
+      if (editId) {
+        const pl = state.customPlaylists.find((p) => p.id === editId);
+        if (pl) {
+          pl.name = name;
+          pl.songIds = checkedIds;
+        }
+      } else {
+        state.customPlaylists.push({
+          id: 'pl-' + Date.now(),
+          name,
+          songIds: checkedIds
+        });
+      }
+
+      savePersistedState();
+      refreshAllMenusInStack();
+      dom.playlistModal.classList.add('hidden');
+    });
+  }
+
+  if (dom.btnClosePlaylistModal) {
+    dom.btnClosePlaylistModal.addEventListener('click', () => dom.playlistModal.classList.add('hidden'));
+  }
+  if (dom.playlistModal) {
+    dom.playlistModal.addEventListener('click', (e) => {
+      if (e.target === dom.playlistModal) dom.playlistModal.classList.add('hidden');
+    });
+  }
+
+  // --------------------------------------------------------------------------
   // 16. ALTERNAR COR DO IPOD & PERSISTÊNCIA LOCAL (LOCALSTORAGE)
   // --------------------------------------------------------------------------
   const STORAGE_KEY = 'ipod_classic_state_v1';
@@ -2991,6 +3614,9 @@
         repeat: state.repeat,
         clickSoundEnabled: state.clickSoundEnabled,
         deletedBuiltinIds: state.deletedBuiltinIds,
+        songEdits: state.songEdits,
+        songEditsByName: state.songEditsByName,
+        customPlaylists: state.customPlaylists,
         songs: state.songs.filter(isPersistableItem),
         videos: state.videos.filter(isPersistableItem),
         photos: state.photos.filter(isPersistableItem)
@@ -3032,6 +3658,29 @@
       if (Array.isArray(saved.photos) && saved.photos.length) {
         const cleanPhotos = saved.photos.filter(isPersistableItem);
         state.photos = [...cleanPhotos, ...state.photos];
+      }
+
+      if (saved.songEdits && typeof saved.songEdits === 'object') {
+        state.songEdits = saved.songEdits;
+        state.songs.forEach((song) => {
+          const edit = state.songEdits[song.id];
+          if (edit && typeof edit === 'object') {
+            if (edit.title) song.title = edit.title;
+            if (edit.artist) song.artist = edit.artist;
+            if (edit.album) song.album = edit.album;
+            if (edit.cover) song.cover = edit.cover;
+          }
+        });
+      }
+
+      if (saved.songEditsByName && typeof saved.songEditsByName === 'object') {
+        state.songEditsByName = saved.songEditsByName;
+      }
+
+      if (Array.isArray(saved.customPlaylists)) {
+        state.customPlaylists = saved.customPlaylists.filter(
+          (pl) => pl && typeof pl.id === 'string' && typeof pl.name === 'string' && Array.isArray(pl.songIds)
+        );
       }
     } catch (_) {}
   }
