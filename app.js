@@ -153,6 +153,7 @@
     slideshowTimer: null,
 
     // Dados da Biblioteca
+    deletedBuiltinIds: [],
     songs: [
       {
         id: 'jj-1',
@@ -309,6 +310,10 @@
     ]
   };
 
+  const DEFAULT_SONGS = state.songs.map((s) => ({ ...s }));
+  const DEFAULT_VIDEOS = state.videos.map((v) => ({ ...v }));
+  const DEFAULT_PHOTOS = state.photos.map((p) => ({ ...p }));
+
   // --------------------------------------------------------------------------
   // 3. REFERÊNCIAS DO DOM
   // --------------------------------------------------------------------------
@@ -336,6 +341,7 @@
     npTrackIndex: document.getElementById('np-track-index'),
     npShuffleBadge: document.getElementById('np-shuffle-badge'),
     npRepeatBadge: document.getElementById('np-repeat-badge'),
+    npDeleteBtn: document.getElementById('np-delete-btn'),
     npTimeRow: document.getElementById('np-time-row'),
     npCurrentTime: document.getElementById('np-current-time'),
     npRemainingTime: document.getElementById('np-remaining-time'),
@@ -582,30 +588,170 @@
     };
   }
 
+  function deleteSongById(songId) {
+    if (!songId) return;
+    const currentTrack = state.playlist[state.currentTrackIndex];
+    const wasCurrent = currentTrack && currentTrack.id === songId;
+    const wasPlaying = !dom.audioEl.paused || isYouTubePlaying();
+    const idxInPlaylist = state.playlist.findIndex((s) => s.id === songId);
+
+    state.songs = state.songs.filter((s) => s.id !== songId);
+    state.playlist = state.playlist.filter((s) => s.id !== songId);
+
+    if (BUILTIN_IDS.has(songId) && !state.deletedBuiltinIds.includes(songId)) {
+      state.deletedBuiltinIds.push(songId);
+    }
+
+    if (wasCurrent) {
+      dom.audioEl.pause();
+      dom.audioEl.removeAttribute('src');
+      dom.audioEl.load();
+      delete dom.audioEl.dataset.ytFallbackId;
+      stopYouTubePlayback();
+      dom.npCurrentTime.textContent = '0:00';
+      dom.npRemainingTime.textContent = '-0:00';
+      dom.npProgressFill.style.width = '0%';
+      dom.npScrubberDiamond.style.left = '0%';
+
+      if (!state.playlist.length && state.songs.length) {
+        state.playlist = [...state.songs];
+      }
+      state.currentTrackIndex = Math.max(0, Math.min(state.currentTrackIndex, state.playlist.length - 1));
+
+      if (state.playlist.length && wasPlaying) {
+        loadAndPlayCurrentTrack();
+      } else {
+        updateNowPlayingUI();
+      }
+    } else if (idxInPlaylist !== -1 && idxInPlaylist < state.currentTrackIndex) {
+      state.currentTrackIndex = Math.max(0, state.currentTrackIndex - 1);
+      updateNowPlayingUI();
+    } else {
+      updateNowPlayingUI();
+    }
+
+    updateLibraryStats();
+    savePersistedState();
+    updateStatusPlayIcon();
+  }
+
+  function clearLoadedSongs() {
+    const userSongIds = state.songs
+      .filter((s) => !BUILTIN_IDS.has(s.id) && !s.isDemo)
+      .map((s) => s.id);
+    userSongIds.forEach((id) => deleteSongById(id));
+  }
+
+  function deleteVideoById(videoId) {
+    if (!videoId) return;
+    state.videos = state.videos.filter((v) => v.id !== videoId);
+    if (BUILTIN_IDS.has(videoId) && !state.deletedBuiltinIds.includes(videoId)) {
+      state.deletedBuiltinIds.push(videoId);
+    }
+    updateLibraryStats();
+    savePersistedState();
+  }
+
+  function deletePhotoById(photoId) {
+    if (!photoId) return;
+    state.photos = state.photos.filter((p) => p.id !== photoId);
+    if (BUILTIN_IDS.has(photoId) && !state.deletedBuiltinIds.includes(photoId)) {
+      state.deletedBuiltinIds.push(photoId);
+    }
+    state.photoIndex = Math.max(0, Math.min(state.photoIndex, state.photos.length - 1));
+    updateLibraryStats();
+    savePersistedState();
+  }
+
+  function restoreDefaultLibrary() {
+    state.deletedBuiltinIds = [];
+    const existingSongIds = new Set(state.songs.map((s) => s.id));
+    DEFAULT_SONGS.forEach((s) => {
+      if (!existingSongIds.has(s.id)) state.songs.push({ ...s });
+    });
+    const existingVideoIds = new Set(state.videos.map((v) => v.id));
+    DEFAULT_VIDEOS.forEach((v) => {
+      if (!existingVideoIds.has(v.id)) state.videos.push({ ...v });
+    });
+    const existingPhotoIds = new Set(state.photos.map((p) => p.id));
+    DEFAULT_PHOTOS.forEach((p) => {
+      if (!existingPhotoIds.has(p.id)) state.photos.push({ ...p });
+    });
+    if (!state.playlist.length) {
+      state.playlist = [...state.songs];
+      state.currentTrackIndex = 0;
+    }
+    updateLibraryStats();
+    updateNowPlayingUI();
+    savePersistedState();
+    renderCurrentMenu();
+  }
+
   function buildPhotosMenu() {
-    return {
+    const menu = {
       title: 'Fotos',
       split: false,
       selectedIndex: 0,
-      items: [
-        {
-          label: 'Ver Álbum de Fotos',
-          sub: `${state.photos.length}`,
-          hasArrow: true,
-          action: () => openPhotosView()
-        },
-        {
-          label: '📁 + Carregar Fotos do PC...',
-          hasArrow: false,
-          action: () => dom.fileInput.click()
-        },
-        {
-          label: '🌐 + Foto por Link (URL)...',
-          hasArrow: false,
-          action: () => openOnlineModal('photo')
-        }
-      ]
+      items: []
     };
+    const buildItems = () => [
+      {
+        label: 'Ver Álbum de Fotos',
+        sub: `${state.photos.length}`,
+        hasArrow: true,
+        action: () => openPhotosView()
+      },
+      {
+        label: '📁 + Carregar Fotos do PC...',
+        hasArrow: false,
+        action: () => dom.fileInput.click()
+      },
+      {
+        label: '🌐 + Foto por Link (URL)...',
+        hasArrow: false,
+        action: () => openOnlineModal('photo')
+      },
+      {
+        label: '🗑️ Excluir Fotos...',
+        hasArrow: true,
+        action: () => pushMenu(buildDeletePhotosMenu())
+      }
+    ];
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
+  }
+
+  function buildDeletePhotosMenu() {
+    const menu = {
+      title: 'Excluir Fotos',
+      split: false,
+      selectedIndex: 0,
+      items: []
+    };
+    const buildItems = () => {
+      if (!state.photos.length) {
+        return [{ label: 'Nenhuma foto na biblioteca', hasArrow: false, action: () => popMenu() }];
+      }
+      return state.photos.map((ph) => ({
+        label: `🗑️ ${ph.title}`,
+        hasArrow: false,
+        action: () => {
+          deletePhotoById(ph.id);
+          menu.refresh();
+          renderCurrentMenu();
+        }
+      }));
+    };
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
   }
 
   function buildMusicMenu() {
@@ -680,49 +826,167 @@
           label: '+ Link do YouTube',
           previewType: 'music',
           action: () => openOnlineModal('youtube-song')
+        },
+        {
+          label: '🗑️ Excluir Músicas',
+          previewType: 'music',
+          action: () => pushMenu(buildDeleteSongsMenu())
         }
       ]
     };
   }
 
   function buildSongListMenu(title, songsList) {
-    return {
+    let localSongs = [...songsList];
+    const menu = {
       title,
       split: false,
       selectedIndex: 0,
-      items: songsList.map((song, idx) => ({
+      items: []
+    };
+    const buildItems = () => {
+      if (!localSongs.length) {
+        return [{ label: 'Nenhuma música nesta lista', hasArrow: false, action: () => popMenu() }];
+      }
+      return localSongs.map((song, idx) => ({
         label: song.title,
         sub: song.artist,
         hasArrow: true,
-        action: () => playPlaylist(songsList, idx)
-      }))
+        action: () => playPlaylist(localSongs, idx),
+        onDelete: () => {
+          deleteSongById(song.id);
+          localSongs = localSongs.filter((s) => s.id !== song.id);
+          menu.refresh();
+          renderCurrentMenu();
+        }
+      }));
     };
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
+  }
+
+  function buildDeleteSongsMenu() {
+    const menu = {
+      title: 'Excluir Músicas',
+      split: false,
+      selectedIndex: 0,
+      items: []
+    };
+    const buildItems = () => {
+      const userSongsCount = state.songs.filter((s) => !BUILTIN_IDS.has(s.id) && !s.isDemo).length;
+      const items = [];
+      if (userSongsCount > 0) {
+        items.push({
+          label: `🗑️ Limpar Carregadas (${userSongsCount})`,
+          hasArrow: false,
+          action: () => {
+            clearLoadedSongs();
+            menu.refresh();
+            renderCurrentMenu();
+          }
+        });
+      }
+      if (!state.songs.length) {
+        items.push({ label: 'Nenhuma música na biblioteca', hasArrow: false, action: () => popMenu() });
+        return items;
+      }
+      state.songs.forEach((song) => {
+        items.push({
+          label: `🗑️ ${song.title}`,
+          sub: song.artist,
+          hasArrow: false,
+          action: () => {
+            deleteSongById(song.id);
+            menu.refresh();
+            renderCurrentMenu();
+          }
+        });
+      });
+      return items;
+    };
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
   }
 
   function buildVideosMenu() {
-    return {
+    const menu = {
       title: 'Vídeos',
       split: false,
       selectedIndex: 0,
-      items: [
-        ...state.videos.map((v) => ({
-          label: v.title,
-          sub: v.artist || 'Vídeo',
-          hasArrow: true,
-          action: () => playVideo(v)
-        })),
-        {
-          label: '▶️ + Link do YouTube...',
-          hasArrow: false,
-          action: () => openOnlineModal('youtube-video')
-        },
-        {
-          label: '📁 + Carregar Vídeo MP4/WebM...',
-          hasArrow: false,
-          action: () => dom.fileInput.click()
-        }
-      ]
+      items: []
     };
+    const buildItems = () => [
+      ...state.videos.map((v) => ({
+        label: v.title,
+        sub: v.artist || 'Vídeo',
+        hasArrow: true,
+        action: () => playVideo(v),
+        onDelete: () => {
+          deleteVideoById(v.id);
+          menu.refresh();
+          renderCurrentMenu();
+        }
+      })),
+      {
+        label: '▶️ + Link do YouTube...',
+        hasArrow: false,
+        action: () => openOnlineModal('youtube-video')
+      },
+      {
+        label: '📁 + Carregar Vídeo MP4/WebM...',
+        hasArrow: false,
+        action: () => dom.fileInput.click()
+      },
+      {
+        label: '🗑️ Excluir Vídeos...',
+        hasArrow: true,
+        action: () => pushMenu(buildDeleteVideosMenu())
+      }
+    ];
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
+  }
+
+  function buildDeleteVideosMenu() {
+    const menu = {
+      title: 'Excluir Vídeos',
+      split: false,
+      selectedIndex: 0,
+      items: []
+    };
+    const buildItems = () => {
+      if (!state.videos.length) {
+        return [{ label: 'Nenhum vídeo na biblioteca', hasArrow: false, action: () => popMenu() }];
+      }
+      return state.videos.map((v) => ({
+        label: `🗑️ ${v.title}`,
+        sub: v.artist || 'Vídeo',
+        hasArrow: false,
+        action: () => {
+          deleteVideoById(v.id);
+          menu.refresh();
+          renderCurrentMenu();
+        }
+      }));
+    };
+    menu.items = buildItems();
+    menu.refresh = () => {
+      menu.items = buildItems();
+      menu.selectedIndex = Math.max(0, Math.min(menu.items.length - 1, menu.selectedIndex));
+    };
+    return menu;
   }
 
   function buildExtrasMenu() {
@@ -819,6 +1083,12 @@
           getSub: () => (deferredInstallPrompt ? 'Pronto' : 'PWA'),
           hasArrow: false,
           action: () => installPwaApp()
+        },
+        {
+          label: 'Restaurar Biblioteca',
+          getSub: () => (state.deletedBuiltinIds.length ? `${state.deletedBuiltinIds.length} removidas` : 'OK'),
+          hasArrow: false,
+          action: () => restoreDefaultLibrary()
         }
       ]
     };
@@ -1106,12 +1376,16 @@
     }
 
     if (state.currentView !== 'split' && state.currentView !== 'full') {
+      const m = currentMenu();
+      if (m && typeof m.refresh === 'function') m.refresh();
       renderCurrentMenu();
       return;
     }
 
     if (state.navStack.length > 1) {
       state.navStack.pop();
+      const m = currentMenu();
+      if (m && typeof m.refresh === 'function') m.refresh();
       renderCurrentMenu();
     }
   }
@@ -1144,6 +1418,21 @@
         arrowSpan.className = 'menu-item-arrow';
         arrowSpan.textContent = '›';
         li.appendChild(arrowSpan);
+      }
+
+      if (typeof item.onDelete === 'function') {
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'menu-item-delete';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Excluir';
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (state.locked) return;
+          playWheelClick();
+          item.onDelete();
+        });
+        li.appendChild(delBtn);
       }
 
       li.addEventListener('click', () => {
@@ -1332,7 +1621,21 @@
 
   function updateNowPlayingUI() {
     const track = state.playlist[state.currentTrackIndex] || state.songs[0];
-    if (!track) return;
+    if (!track) {
+      dom.npArtwork.src = jackCover;
+      dom.npArtworkReflection.src = jackCover;
+      dom.npTitle.textContent = 'Sem Músicas';
+      dom.npArtist.textContent = 'Adicione músicas ou links';
+      dom.npAlbum.textContent = 'iPod Classic';
+      dom.npRating.textContent = '☆☆☆☆☆';
+      dom.npTrackIndex.textContent = '0 of 0';
+      dom.npShuffleBadge.textContent = '';
+      dom.npRepeatBadge.textContent = '';
+      if (dom.npDeleteBtn) dom.npDeleteBtn.classList.add('hidden');
+      return;
+    }
+
+    if (dom.npDeleteBtn) dom.npDeleteBtn.classList.remove('hidden');
 
     const coverUrl = track.cover || jackCover;
     dom.npArtwork.src = coverUrl;
@@ -1353,6 +1656,17 @@
 
     dom.npScrubberDiamond.classList.toggle('hidden', state.npMode !== 'scrub');
     dom.npVolumeFill.style.width = `${Math.round(state.volume * 100)}%`;
+  }
+
+  if (dom.npDeleteBtn) {
+    dom.npDeleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.locked) return;
+      const track = state.playlist[state.currentTrackIndex] || state.songs[0];
+      if (!track) return;
+      playWheelClick();
+      deleteSongById(track.id);
+    });
   }
 
   function updateStatusPlayIcon() {
@@ -2676,6 +2990,7 @@
         shuffle: state.shuffle,
         repeat: state.repeat,
         clickSoundEnabled: state.clickSoundEnabled,
+        deletedBuiltinIds: state.deletedBuiltinIds,
         songs: state.songs.filter(isPersistableItem),
         videos: state.videos.filter(isPersistableItem),
         photos: state.photos.filter(isPersistableItem)
@@ -2697,6 +3012,14 @@
       if (typeof saved.shuffle === 'boolean') state.shuffle = saved.shuffle;
       if (['off', 'one', 'all'].includes(saved.repeat)) state.repeat = saved.repeat;
       if (typeof saved.clickSoundEnabled === 'boolean') state.clickSoundEnabled = saved.clickSoundEnabled;
+
+      if (Array.isArray(saved.deletedBuiltinIds)) {
+        state.deletedBuiltinIds = saved.deletedBuiltinIds.filter((id) => typeof id === 'string');
+        const delSet = new Set(state.deletedBuiltinIds);
+        state.songs = state.songs.filter((s) => !delSet.has(s.id));
+        state.videos = state.videos.filter((v) => !delSet.has(v.id));
+        state.photos = state.photos.filter((p) => !delSet.has(p.id));
+      }
 
       if (Array.isArray(saved.songs) && saved.songs.length) {
         const cleanSongs = saved.songs.filter(isPersistableItem);

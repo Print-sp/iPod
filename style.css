@@ -593,6 +593,36 @@ body {
   color: #94a3b8;
 }
 
+.menu-item-delete {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #dc2626;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 5px;
+  margin-left: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.menu-item-delete:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.menu-item.selected .menu-item-delete {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+}
+
+.menu-item.selected .menu-item-delete:hover {
+  background: #ef4444;
+  border-color: #ffffff;
+}
+
 /* Seleção Azul Brilhante Clássica do iPod */
 .menu-item.selected {
   background: linear-gradient(180deg, var(--ipod-blue-top) 0%, var(--ipod-blue-bot) 100%);
@@ -800,11 +830,30 @@ body {
 
 .np-badges {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   font-size: 10px;
   font-weight: 700;
   color: #2563eb;
   margin-top: 1px;
+}
+
+.np-delete-btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.np-delete-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
 }
 
 /* Barra de Progresso Azul Brilhante (Aqua Glossy Bar) + Reflexo */
