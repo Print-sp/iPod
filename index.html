@@ -17,8 +17,9 @@
 <body>
   <div class="app-layout">
     <!-- Inputs de arquivos ocultos acionados pelo próprio Menu do iPod -->
-    <input type="file" id="file-input" multiple accept="audio/*,video/*,image/*" hidden>
+    <input type="file" id="file-input" multiple accept="audio/*,video/*,image/*,.json" hidden>
     <input type="file" id="folder-input" webkitdirectory directory multiple hidden>
+    <input type="file" id="backup-input" accept=".json,application/json" hidden>
 
     <!-- Área Principal contendo APENAS o iPod Classic -->
     <main class="ipod-stage" id="drop-zone">

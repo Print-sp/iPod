@@ -403,6 +403,7 @@
     audioEl: document.getElementById('ipod-audio'),
     fileInput: document.getElementById('file-input'),
     folderInput: document.getElementById('folder-input'),
+    backupInput: document.getElementById('backup-input'),
     btnOnlineModal: document.getElementById('btn-online-modal'),
     btnSkinToggle: document.getElementById('btn-skin-toggle'),
     dropZone: document.getElementById('drop-zone'),
@@ -636,7 +637,7 @@
           action: () => openOnlineModal('youtube-song')
         },
         {
-          label: '📁 + Arquivos do PC',
+          label: '📁 + Arquivos do PC / Celular',
           hasArrow: false,
           action: () => dom.fileInput.click()
         },
@@ -644,6 +645,16 @@
           label: '📂 + Pasta Inteira do PC',
           hasArrow: false,
           action: () => dom.folderInput.click()
+        },
+        {
+          label: '💾 Salvar Backup em Arquivo',
+          hasArrow: false,
+          action: () => exportLibraryBackupFile()
+        },
+        {
+          label: '📥 Carregar Arquivo de Backup',
+          hasArrow: false,
+          action: () => dom.backupInput && dom.backupInput.click()
         }
       ]
     };
@@ -659,6 +670,7 @@
     state.songs = state.songs.filter((s) => s.id !== songId);
     state.playlist = state.playlist.filter((s) => s.id !== songId);
     delete state.songEdits[songId];
+    idbDeleteMediaItem(songId);
     state.customPlaylists.forEach((pl) => {
       pl.songIds = pl.songIds.filter((id) => id !== songId);
     });
@@ -710,6 +722,7 @@
   function deleteVideoById(videoId) {
     if (!videoId) return;
     state.videos = state.videos.filter((v) => v.id !== videoId);
+    idbDeleteMediaItem(videoId);
     if (BUILTIN_IDS.has(videoId) && !state.deletedBuiltinIds.includes(videoId)) {
       state.deletedBuiltinIds.push(videoId);
     }
@@ -720,6 +733,7 @@
   function deletePhotoById(photoId) {
     if (!photoId) return;
     state.photos = state.photos.filter((p) => p.id !== photoId);
+    idbDeleteMediaItem(photoId);
     if (BUILTIN_IDS.has(photoId) && !state.deletedBuiltinIds.includes(photoId)) {
       state.deletedBuiltinIds.push(photoId);
     }
@@ -886,6 +900,16 @@
           label: '+ Link do YouTube',
           previewType: 'music',
           action: () => openOnlineModal('youtube-song')
+        },
+        {
+          label: '💾 Salvar Backup (.json)',
+          previewType: 'music',
+          action: () => exportLibraryBackupFile()
+        },
+        {
+          label: '📥 Carregar Backup (.json)',
+          previewType: 'music',
+          action: () => dom.backupInput && dom.backupInput.click()
         },
         {
           label: '🗑️ Excluir Músicas',
@@ -1415,6 +1439,16 @@
           getSub: () => (deferredInstallPrompt ? 'Pronto' : 'PWA'),
           hasArrow: false,
           action: () => installPwaApp()
+        },
+        {
+          label: '💾 Salvar Backup (Arquivo)',
+          hasArrow: false,
+          action: () => exportLibraryBackupFile()
+        },
+        {
+          label: '📥 Carregar Backup (Arquivo)',
+          hasArrow: false,
+          action: () => dom.backupInput && dom.backupInput.click()
         },
         {
           label: 'Restaurar Biblioteca',
@@ -3050,6 +3084,11 @@
     let addedPhotos = 0;
 
     Array.from(fileList).forEach((file) => {
+      if (/\.json$/i.test(file.name) || file.type === 'application/json') {
+        importLibraryBackupFile(file);
+        return;
+      }
+
       const url = URL.createObjectURL(file);
       const title = cleanFileName(file.name);
 
@@ -3074,37 +3113,47 @@
           if (savedByFile.cover) cover = savedByFile.cover;
         }
 
-        state.songs.unshift({
-          id: 'local-s-' + Date.now() + '-' + Math.random(),
+        const songObj = {
+          id: 'local-s-' + Date.now() + '-' + Math.floor(Math.random() * 100000),
           fileKey,
           title: trackTitle,
           artist,
           album,
           rating: 5,
           cover,
-          url
-        });
+          url,
+          isLocalIdb: true
+        };
+        state.songs.unshift(songObj);
+        idbSaveMediaItem('song', songObj, file);
         addedSongs++;
       } else if (file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(file.name)) {
-        state.videos.unshift({
-          id: 'local-v-' + Date.now() + '-' + Math.random(),
+        const vidObj = {
+          id: 'local-v-' + Date.now() + '-' + Math.floor(Math.random() * 100000),
           title,
           artist: 'Vídeo Local',
           url,
-          cover: createCoverArt('#31102f', '#ec4899', title.slice(0, 16), 'Vídeo Local', '🎬')
-        });
+          cover: createCoverArt('#31102f', '#ec4899', title.slice(0, 16), 'Vídeo Local', '🎬'),
+          isLocalIdb: true
+        };
+        state.videos.unshift(vidObj);
+        idbSaveMediaItem('video', vidObj, file);
         addedVideos++;
       } else if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)) {
-        state.photos.unshift({
-          id: 'local-p-' + Date.now() + '-' + Math.random(),
+        const photoObj = {
+          id: 'local-p-' + Date.now() + '-' + Math.floor(Math.random() * 100000),
           title,
-          url
-        });
+          url,
+          isLocalIdb: true
+        };
+        state.photos.unshift(photoObj);
+        idbSaveMediaItem('photo', photoObj, file);
         addedPhotos++;
       }
     });
 
     updateLibraryStats();
+    savePersistedState();
 
     if (addedSongs > 0) {
       playPlaylist(state.songs, 0);
@@ -3119,6 +3168,13 @@
 
   dom.fileInput.addEventListener('change', (e) => handleImportedFiles(e.target.files));
   dom.folderInput.addEventListener('change', (e) => handleImportedFiles(e.target.files));
+  if (dom.backupInput) {
+    dom.backupInput.addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) importLibraryBackupFile(f);
+      e.target.value = '';
+    });
+  }
 
   // Drag & Drop direto sobre o iPod
   dom.dropZone.addEventListener('dragover', (e) => {
@@ -3728,6 +3784,359 @@
     } catch (_) {}
   }
 
+  // --------------------------------------------------------------------------
+  // 16B. BANCO DE DADOS NO DISPOSITIVO (INDEXEDDB) & ARQUIVO DE BACKUP (.JSON)
+  // --------------------------------------------------------------------------
+  const IDB_NAME = 'ipod_classic_media_db_v1';
+  const IDB_STORE = 'media_items';
+
+  function openMediaIdb() {
+    return new Promise((resolve, reject) => {
+      if (typeof indexedDB === 'undefined') {
+        reject(new Error('IndexedDB indisponível'));
+        return;
+      }
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) {
+          db.createObjectStore(IDB_STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbSaveMediaItem(kind, itemObj, blob) {
+    try {
+      const db = await openMediaIdb();
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      const store = tx.objectStore(IDB_STORE);
+      const metaCopy = { ...itemObj };
+      delete metaCopy.url;
+      store.put({
+        id: itemObj.id,
+        kind,
+        meta: metaCopy,
+        blob,
+        savedAt: Date.now()
+      });
+    } catch (_) {}
+  }
+
+  async function idbDeleteMediaItem(id) {
+    try {
+      const db = await openMediaIdb();
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(id);
+    } catch (_) {}
+  }
+
+  async function idbGetAllMediaRecords() {
+    try {
+      const db = await openMediaIdb();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function idbRestoreSavedMedia() {
+    const records = await idbGetAllMediaRecords();
+    if (!records.length) return;
+
+    const existingSongIds = new Set(state.songs.map((s) => s.id));
+    const existingVideoIds = new Set(state.videos.map((v) => v.id));
+    const existingPhotoIds = new Set(state.photos.map((p) => p.id));
+
+    records.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+
+    records.forEach((rec) => {
+      if (!rec || !rec.blob || !rec.meta) return;
+      const url = URL.createObjectURL(rec.blob);
+      const item = { ...rec.meta, url, isLocalIdb: true };
+
+      if (rec.kind === 'song' && !existingSongIds.has(item.id)) {
+        const edit = state.songEdits[item.id] || (item.fileKey && state.songEditsByName[item.fileKey]);
+        if (edit) {
+          if (edit.title) item.title = edit.title;
+          if (edit.artist) item.artist = edit.artist;
+          if (edit.album) item.album = edit.album;
+          if (edit.cover) item.cover = edit.cover;
+        }
+        state.songs.unshift(item);
+        existingSongIds.add(item.id);
+      } else if (rec.kind === 'video' && !existingVideoIds.has(item.id)) {
+        state.videos.unshift(item);
+        existingVideoIds.add(item.id);
+      } else if (rec.kind === 'photo' && !existingPhotoIds.has(item.id)) {
+        state.photos.unshift(item);
+        existingPhotoIds.add(item.id);
+      }
+    });
+
+    state.playlist = [...state.songs];
+    state.currentTrackIndex = 0;
+    updateLibraryStats();
+    updateNowPlayingUI();
+    refreshAllMenusInStack();
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    const parts = dataUrl.split(',');
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    const bstr = atob(parts[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  }
+
+  async function exportLibraryBackupFile() {
+    showView('extra', 'Salvando Backup...');
+    dom.extraContent.innerHTML = `
+      <div style="text-align:center;font-size:12px;line-height:1.5;padding-top:22px;">
+        <div style="font-size:32px;margin-bottom:6px;">💾</div>
+        <strong>Gerando arquivo de backup...</strong>
+        <p style="color:#475569;margin-top:6px;">Empacotando suas músicas, capas, playlists, vídeos e fotos.</p>
+      </div>
+    `;
+
+    try {
+      const idbRecords = await idbGetAllMediaRecords();
+      const localMediaExport = [];
+
+      for (const rec of idbRecords) {
+        if (!rec || !rec.blob || !rec.meta) continue;
+        // Limite de 25MB por arquivo individual no JSON para não travar a memória do navegador
+        if (rec.blob.size <= 25 * 1024 * 1024) {
+          const dataUrl = await blobToDataUrl(rec.blob);
+          const latestSong = rec.kind === 'song' ? state.songs.find((s) => s.id === rec.id) : null;
+          const metaToSave = latestSong ? { ...latestSong } : { ...rec.meta };
+          delete metaToSave.url;
+          localMediaExport.push({
+            id: rec.id,
+            kind: rec.kind,
+            meta: metaToSave,
+            dataUrl,
+            savedAt: rec.savedAt || Date.now()
+          });
+        }
+      }
+
+      const backupData = {
+        app: 'iPod Classic 160GB',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        skinIndex: state.skinIndex,
+        shuffle: state.shuffle,
+        repeat: state.repeat,
+        clickSoundEnabled: state.clickSoundEnabled,
+        vibrateEnabled: state.vibrateEnabled,
+        deletedBuiltinIds: state.deletedBuiltinIds,
+        songEdits: state.songEdits,
+        songEditsByName: state.songEditsByName,
+        customPlaylists: state.customPlaylists,
+        onlineSongs: state.songs.filter(isPersistableItem),
+        onlineVideos: state.videos.filter(isPersistableItem),
+        onlinePhotos: state.photos.filter(isPersistableItem),
+        localMedia: localMediaExport
+      };
+
+      const jsonStr = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const downloadUrl = URL.createObjectURL(blob);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `iPod-Classic-Backup-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
+
+      dom.extraContent.innerHTML = `
+        <div style="text-align:center;font-size:12px;line-height:1.5;padding-top:16px;">
+          <div style="font-size:32px;margin-bottom:6px;">✅</div>
+          <strong>Backup salvo no dispositivo!</strong>
+          <p style="color:#475569;margin-top:6px;">Arquivo <code>iPod-Classic-Backup-${dateStr}.json</code> baixado com sucesso.</p>
+          <p style="color:#475569;margin-top:4px;">Use <strong>Carregar Backup</strong> para restaurar quando quiser.</p>
+        </div>
+      `;
+    } catch (err) {
+      dom.extraContent.innerHTML = `
+        <div style="text-align:center;font-size:12px;line-height:1.5;padding-top:18px;">
+          <div style="font-size:30px;margin-bottom:6px;">⚠️</div>
+          <strong>Erro ao gerar backup</strong>
+          <p style="color:#475569;margin-top:6px;">${err && err.message ? err.message : 'Tente novamente.'}</p>
+        </div>
+      `;
+    }
+  }
+
+  async function importLibraryBackupFile(file) {
+    if (!file) return;
+    showView('extra', 'Restaurando...');
+    dom.extraContent.innerHTML = `
+      <div style="text-align:center;font-size:12px;line-height:1.5;padding-top:22px;">
+        <div style="font-size:32px;margin-bottom:6px;">📥</div>
+        <strong>Carregando backup...</strong>
+        <p style="color:#475569;margin-top:6px;">Restaurando músicas, capas, playlists, vídeos e fotos.</p>
+      </div>
+    `;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data || typeof data !== 'object') {
+        throw new Error('Arquivo de backup inválido.');
+      }
+
+      if (typeof data.skinIndex === 'number') setSkinByIndex(data.skinIndex, false);
+      if (typeof data.shuffle === 'boolean') state.shuffle = data.shuffle;
+      if (['off', 'one', 'all'].includes(data.repeat)) state.repeat = data.repeat;
+      if (typeof data.clickSoundEnabled === 'boolean') state.clickSoundEnabled = data.clickSoundEnabled;
+      if (typeof data.vibrateEnabled === 'boolean') state.vibrateEnabled = data.vibrateEnabled;
+
+      if (Array.isArray(data.deletedBuiltinIds)) {
+        state.deletedBuiltinIds = data.deletedBuiltinIds;
+        const delSet = new Set(state.deletedBuiltinIds);
+        state.songs = state.songs.filter((s) => !delSet.has(s.id));
+        state.videos = state.videos.filter((v) => !delSet.has(v.id));
+        state.photos = state.photos.filter((p) => !delSet.has(p.id));
+      }
+
+      if (data.songEdits && typeof data.songEdits === 'object') {
+        state.songEdits = { ...state.songEdits, ...data.songEdits };
+      }
+      if (data.songEditsByName && typeof data.songEditsByName === 'object') {
+        state.songEditsByName = { ...state.songEditsByName, ...data.songEditsByName };
+      }
+
+      const existingSongIds = new Set(state.songs.map((s) => s.id));
+      const existingVideoIds = new Set(state.videos.map((v) => v.id));
+      const existingPhotoIds = new Set(state.photos.map((p) => p.id));
+
+      if (Array.isArray(data.onlineSongs)) {
+        data.onlineSongs.forEach((s) => {
+          if (s && s.id && !existingSongIds.has(s.id)) {
+            state.songs.unshift(s);
+            existingSongIds.add(s.id);
+          }
+        });
+      }
+      if (Array.isArray(data.onlineVideos)) {
+        data.onlineVideos.forEach((v) => {
+          if (v && v.id && !existingVideoIds.has(v.id)) {
+            state.videos.unshift(v);
+            existingVideoIds.add(v.id);
+          }
+        });
+      }
+      if (Array.isArray(data.onlinePhotos)) {
+        data.onlinePhotos.forEach((p) => {
+          if (p && p.id && !existingPhotoIds.has(p.id)) {
+            state.photos.unshift(p);
+            existingPhotoIds.add(p.id);
+          }
+        });
+      }
+
+      if (Array.isArray(data.localMedia)) {
+        for (const item of data.localMedia) {
+          if (!item || !item.dataUrl || !item.meta) continue;
+          const blob = dataUrlToBlob(item.dataUrl);
+          const url = URL.createObjectURL(blob);
+          const restoredObj = { ...item.meta, url, isLocalIdb: true };
+
+          if (item.kind === 'song' && !existingSongIds.has(restoredObj.id)) {
+            state.songs.unshift(restoredObj);
+            existingSongIds.add(restoredObj.id);
+            await idbSaveMediaItem('song', restoredObj, blob);
+          } else if (item.kind === 'video' && !existingVideoIds.has(restoredObj.id)) {
+            state.videos.unshift(restoredObj);
+            existingVideoIds.add(restoredObj.id);
+            await idbSaveMediaItem('video', restoredObj, blob);
+          } else if (item.kind === 'photo' && !existingPhotoIds.has(restoredObj.id)) {
+            state.photos.unshift(restoredObj);
+            existingPhotoIds.add(restoredObj.id);
+            await idbSaveMediaItem('photo', restoredObj, blob);
+          }
+        }
+      }
+
+      // Aplicar edições de título/artista/álbum/capa em todas as músicas
+      state.songs.forEach((song) => {
+        const edit = state.songEdits[song.id] || (song.fileKey && state.songEditsByName[song.fileKey]);
+        if (edit && typeof edit === 'object') {
+          if (edit.title) song.title = edit.title;
+          if (edit.artist) song.artist = edit.artist;
+          if (edit.album) song.album = edit.album;
+          if (edit.cover) song.cover = edit.cover;
+        }
+      });
+
+      if (Array.isArray(data.customPlaylists)) {
+        const plIds = new Set(state.customPlaylists.map((p) => p.id));
+        data.customPlaylists.forEach((pl) => {
+          if (!pl || !pl.id || !pl.name || !Array.isArray(pl.songIds)) return;
+          if (plIds.has(pl.id)) {
+            const target = state.customPlaylists.find((p) => p.id === pl.id);
+            if (target) {
+              target.name = pl.name;
+              target.songIds = pl.songIds;
+            }
+          } else {
+            state.customPlaylists.push(pl);
+            plIds.add(pl.id);
+          }
+        });
+      }
+
+      state.playlist = [...state.songs];
+      state.currentTrackIndex = 0;
+      savePersistedState();
+      updateLibraryStats();
+      updateNowPlayingUI();
+      refreshAllMenusInStack();
+
+      dom.extraContent.innerHTML = `
+        <div style="text-align:center;font-size:12px;line-height:1.5;padding-top:16px;">
+          <div style="font-size:32px;margin-bottom:6px;">🎉</div>
+          <strong>Backup Restaurado!</strong>
+          <p style="color:#475569;margin-top:6px;">${state.songs.length} músicas • ${state.customPlaylists.length} playlists • ${state.videos.length} vídeos • ${state.photos.length} fotos</p>
+          <p style="color:#475569;margin-top:6px;">Aperte <strong>MENU</strong> para voltar.</p>
+        </div>
+      `;
+    } catch (err) {
+      dom.extraContent.innerHTML = `
+        <div style="text-align:center;font-size:12px;line-height:1.5;padding-top:18px;">
+          <div style="font-size:30px;margin-bottom:6px;">⚠️</div>
+          <strong>Falha ao restaurar backup</strong>
+          <p style="color:#475569;margin-top:6px;">Verifique se o arquivo selecionado é um backup <code>.json</code> válido do iPod.</p>
+        </div>
+      `;
+    }
+  }
+
   function setSkinByIndex(idx, shouldSave = true) {
     state.skins.forEach((s) => dom.ipodShell.classList.remove(s.id));
     state.skinIndex = ((idx % state.skins.length) + state.skins.length) % state.skins.length;
@@ -3936,6 +4345,7 @@
     updateNowPlayingUI();
     updateIpodScale();
     initBatteryMonitor();
+    idbRestoreSavedMedia();
 
     // Inicia o menu raiz na pilha
     state.navStack = [buildRootMenu()];
