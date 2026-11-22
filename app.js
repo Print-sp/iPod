@@ -116,8 +116,15 @@
 
   const state = {
     locked: false,
+    theme: 'light', // 'light' | 'dark'
+    coverFlowStyle: 'original', // 'original' | 'flat' | 'carousel'
+    wheelSize: 'large', // 'small' | 'medium' | 'large'
+    wheelSensitivity: 'medium', // 'low' | 'medium' | 'high'
+    touchScreenEnabled: true,
     clickSoundEnabled: true,
     vibrateEnabled: true,
+    volumeControlMode: 'app', // 'app' | 'device'
+    splitScreenEnabled: true,
     backlightOn: true,
     shuffle: false, // false | 'songs'
     repeat: 'off',  // 'off' | 'one' | 'all'
@@ -585,7 +592,7 @@
           action: () => pushMenu(buildExtrasMenu())
         },
         {
-          label: 'Ajustes',
+          label: 'Configurações',
           previewType: 'settings',
           action: () => pushMenu(buildSettingsMenu())
         },
@@ -1369,51 +1376,120 @@
     };
   }
 
+  function applyVisualSettings() {
+    const lcdScreen = document.getElementById('lcd-screen');
+    if (lcdScreen) {
+      lcdScreen.classList.toggle('theme-dark', state.theme === 'dark');
+      lcdScreen.classList.toggle('touch-disabled', !state.touchScreenEnabled);
+    }
+    if (state.volumeControlMode === 'device') {
+      dom.audioEl.volume = 1;
+      dom.videoEl.volume = 1;
+      if (ytReady && ytPlayer && typeof ytPlayer.setVolume === 'function') {
+        ytPlayer.setVolume(100);
+      }
+    } else {
+      dom.audioEl.volume = state.volume;
+      dom.videoEl.volume = state.volume;
+      if (ytReady && ytPlayer && typeof ytPlayer.setVolume === 'function') {
+        ytPlayer.setVolume(Math.round(state.volume * 100));
+      }
+    }
+    updateIpodScale();
+  }
+
   function buildSettingsMenu() {
     return {
-      title: 'Ajustes',
+      title: 'Configurações',
       split: false,
       selectedIndex: 0,
       items: [
         {
-          label: 'Sobre',
-          hasArrow: true,
-          action: () => openAboutView()
-        },
-        {
-          label: 'Aleatório',
-          getSub: () => (state.shuffle ? 'Músicas' : 'Desl.'),
+          label: 'Tema',
+          getSub: () => (state.theme === 'dark' ? 'Escuro' : 'Claro'),
           hasArrow: false,
           action: () => {
-            state.shuffle = !state.shuffle;
+            state.theme = state.theme === 'dark' ? 'light' : 'dark';
+            applyVisualSettings();
             savePersistedState();
             renderCurrentMenu();
           }
         },
         {
-          label: 'Repetir',
-          getSub: () => (state.repeat === 'off' ? 'Desl.' : state.repeat === 'one' ? 'Uma' : 'Todas'),
+          label: 'Fluxo de cobertura',
+          getSub: () => (
+            state.coverFlowStyle === 'flat'
+              ? 'Plano'
+              : state.coverFlowStyle === 'carousel'
+                ? 'Carrossel'
+                : 'Original'
+          ),
           hasArrow: false,
           action: () => {
-            const order = ['off', 'all', 'one'];
-            state.repeat = order[(order.indexOf(state.repeat) + 1) % order.length];
+            const order = ['original', 'flat', 'carousel'];
+            state.coverFlowStyle = order[(order.indexOf(state.coverFlowStyle) + 1) % order.length];
             savePersistedState();
             renderCurrentMenu();
           }
         },
         {
-          label: 'Clique da Roda',
-          getSub: () => (state.clickSoundEnabled ? 'Alto-falante' : 'Desl.'),
+          label: 'Cor do Dispositivo',
+          getSub: () => state.skins[state.skinIndex].name,
           hasArrow: false,
           action: () => {
-            state.clickSoundEnabled = !state.clickSoundEnabled;
+            cycleSkin();
+            renderCurrentMenu();
+          }
+        },
+        {
+          label: 'Tamanho da Click Wheel',
+          getSub: () => (
+            state.wheelSize === 'small'
+              ? 'Pequeno'
+              : state.wheelSize === 'medium'
+                ? 'Médio'
+                : 'Grande'
+          ),
+          hasArrow: false,
+          action: () => {
+            const order = ['small', 'medium', 'large'];
+            state.wheelSize = order[(order.indexOf(state.wheelSize) + 1) % order.length];
+            updateIpodScale();
             savePersistedState();
             renderCurrentMenu();
           }
         },
         {
-          label: 'Vibração da Roda',
-          getSub: () => (state.vibrateEnabled ? 'Ligada' : 'Desl.'),
+          label: 'Sensibilidade da Click Wheel',
+          getSub: () => (
+            state.wheelSensitivity === 'low'
+              ? 'Baixo'
+              : state.wheelSensitivity === 'high'
+                ? 'Alto'
+                : 'Médio'
+          ),
+          hasArrow: false,
+          action: () => {
+            const order = ['low', 'medium', 'high'];
+            state.wheelSensitivity = order[(order.indexOf(state.wheelSensitivity) + 1) % order.length];
+            savePersistedState();
+            renderCurrentMenu();
+          }
+        },
+        {
+          label: 'Ativar Tela de Toque',
+          getSub: () => (state.touchScreenEnabled ? 'Ligado' : 'Desligado'),
+          hasArrow: false,
+          action: () => {
+            state.touchScreenEnabled = !state.touchScreenEnabled;
+            applyVisualSettings();
+            savePersistedState();
+            renderCurrentMenu();
+          }
+        },
+        {
+          label: 'Vibração',
+          getSub: () => (state.vibrateEnabled ? 'Ligado' : 'Desligado'),
           hasArrow: false,
           action: () => {
             state.vibrateEnabled = !state.vibrateEnabled;
@@ -1423,14 +1499,60 @@
           }
         },
         {
-          label: 'Cor',
-          getSub: () => state.skins[state.skinIndex].name,
-          hasArrow: true,
-          action: () => pushMenu(buildColorMenu())
+          label: 'Sons da Click Wheel',
+          getSub: () => (state.clickSoundEnabled ? 'Ligado' : 'Desligado'),
+          hasArrow: false,
+          action: () => {
+            state.clickSoundEnabled = !state.clickSoundEnabled;
+            savePersistedState();
+            renderCurrentMenu();
+          }
+        },
+        {
+          label: 'Modo de Controle de Volume',
+          getSub: () => (state.volumeControlMode === 'device' ? 'Dispositivo' : 'App'),
+          hasArrow: false,
+          action: () => {
+            state.volumeControlMode = state.volumeControlMode === 'device' ? 'app' : 'device';
+            applyVisualSettings();
+            savePersistedState();
+            renderCurrentMenu();
+          }
+        },
+        {
+          label: 'Tela Dividida',
+          getSub: () => (state.splitScreenEnabled ? 'Ligado' : 'Desligado'),
+          hasArrow: false,
+          action: () => {
+            state.splitScreenEnabled = !state.splitScreenEnabled;
+            savePersistedState();
+            renderCurrentMenu();
+          }
+        },
+        {
+          label: 'Aleatório',
+          getSub: () => (state.shuffle ? 'Músicas' : 'Desligado'),
+          hasArrow: false,
+          action: () => {
+            state.shuffle = !state.shuffle;
+            savePersistedState();
+            renderCurrentMenu();
+          }
+        },
+        {
+          label: 'Repetir',
+          getSub: () => (state.repeat === 'off' ? 'Desligado' : state.repeat === 'one' ? 'Uma' : 'Todas'),
+          hasArrow: false,
+          action: () => {
+            const order = ['off', 'all', 'one'];
+            state.repeat = order[(order.indexOf(state.repeat) + 1) % order.length];
+            savePersistedState();
+            renderCurrentMenu();
+          }
         },
         {
           label: 'Tela Cheia',
-          getSub: () => (document.fullscreenElement ? 'Ativo' : 'Desl.'),
+          getSub: () => (document.fullscreenElement ? 'Ativo' : 'Desligado'),
           hasArrow: false,
           action: () => toggleFullscreen()
         },
@@ -1455,6 +1577,11 @@
           getSub: () => (state.deletedBuiltinIds.length ? `${state.deletedBuiltinIds.length} removidas` : 'OK'),
           hasArrow: false,
           action: () => restoreDefaultLibrary()
+        },
+        {
+          label: 'Sobre',
+          hasArrow: true,
+          action: () => openAboutView()
         }
       ]
     };
@@ -1773,8 +1900,9 @@
     const menu = currentMenu();
     if (!menu) return;
 
-    showView(menu.split ? 'split' : 'full', menu.title);
-    const listEl = menu.split ? dom.menuList : dom.fullMenuList;
+    const useSplit = Boolean(menu.split && state.splitScreenEnabled);
+    showView(useSplit ? 'split' : 'full', menu.title);
+    const listEl = useSplit ? dom.menuList : dom.fullMenuList;
     listEl.innerHTML = '';
 
     menu.items.forEach((item, idx) => {
@@ -1846,7 +1974,7 @@
       selectedEl.scrollIntoView({ block: 'nearest' });
     }
 
-    if (menu.split) {
+    if (useSplit) {
       renderSplitPreview(menu.items[menu.selectedIndex]);
     }
   }
@@ -2324,14 +2452,24 @@
       let tz = -Math.abs(offset) * 55;
       let ry = 0;
 
-      if (offset < 0) {
-        tx -= 30;
-        ry = 58;
-      } else if (offset > 0) {
-        tx += 30;
-        ry = -58;
+      if (state.coverFlowStyle === 'flat') {
+        tx = offset * 104;
+        tz = offset === 0 ? 22 : -22;
+        ry = 0;
+      } else if (state.coverFlowStyle === 'carousel') {
+        tx = offset * 62;
+        tz = -Math.abs(offset) * 40;
+        ry = -offset * 24;
       } else {
-        tz = 35;
+        if (offset < 0) {
+          tx -= 30;
+          ry = 58;
+        } else if (offset > 0) {
+          tx += 30;
+          ry = -58;
+        } else {
+          tz = 35;
+        }
       }
 
       card.style.transform = `translateX(${tx}px) translateZ(${tz}px) rotateY(${ry}deg)`;
@@ -2843,12 +2981,14 @@
     if (state.currentView === 'now-playing') {
       const track = state.playlist[state.currentTrackIndex] || state.songs[0];
       if (state.npMode === 'volume') {
-        state.volume = Math.max(0, Math.min(1, state.volume + direction * 0.05));
-        dom.audioEl.volume = state.volume;
-        if (ytReady && ytPlayer && typeof ytPlayer.setVolume === 'function') {
-          ytPlayer.setVolume(Math.round(state.volume * 100));
+        if (state.volumeControlMode === 'app') {
+          state.volume = Math.max(0, Math.min(1, state.volume + direction * 0.05));
+          dom.audioEl.volume = state.volume;
+          if (ytReady && ytPlayer && typeof ytPlayer.setVolume === 'function') {
+            ytPlayer.setVolume(Math.round(state.volume * 100));
+          }
+          showTemporaryVolumeBar();
         }
-        showTemporaryVolumeBar();
       } else if (state.npMode === 'scrub') {
         if (activeYoutubeMode === 'song' && ytReady && ytPlayer && typeof ytPlayer.getDuration === 'function') {
           const dur = ytPlayer.getDuration();
@@ -2878,13 +3018,15 @@
 
     // 5. Se estiver no Vídeo
     if (state.currentView === 'video') {
-      state.volume = Math.max(0, Math.min(1, state.volume + direction * 0.05));
-      dom.videoEl.volume = state.volume;
-      if (dom.videoEl.dataset.ytAudioSync === '1') {
-        dom.audioEl.volume = state.volume;
-      }
-      if (ytReady && ytPlayer && typeof ytPlayer.setVolume === 'function') {
-        ytPlayer.setVolume(Math.round(state.volume * 100));
+      if (state.volumeControlMode === 'app') {
+        state.volume = Math.max(0, Math.min(1, state.volume + direction * 0.05));
+        dom.videoEl.volume = state.volume;
+        if (dom.videoEl.dataset.ytAudioSync === '1') {
+          dom.audioEl.volume = state.volume;
+        }
+        if (ytReady && ytPlayer && typeof ytPlayer.setVolume === 'function') {
+          ytPlayer.setVolume(Math.round(state.volume * 100));
+        }
       }
       pokeVideoHud();
       return;
@@ -2970,7 +3112,11 @@
     angleAccumulator += delta;
     lastWheelAngle = currentAngle;
 
-    const stepThreshold = 15; // Cada 15 graus de giro = 1 "tick" da Click Wheel
+    const stepThreshold = state.wheelSensitivity === 'low'
+      ? 22
+      : state.wheelSensitivity === 'high'
+        ? 8
+        : 14;
     while (Math.abs(angleAccumulator) >= stepThreshold) {
       const dir = angleAccumulator > 0 ? 1 : -1;
       onWheelStep(dir);
@@ -3707,6 +3853,13 @@
     try {
       const payload = {
         skinIndex: state.skinIndex,
+        theme: state.theme,
+        coverFlowStyle: state.coverFlowStyle,
+        wheelSize: state.wheelSize,
+        wheelSensitivity: state.wheelSensitivity,
+        touchScreenEnabled: state.touchScreenEnabled,
+        volumeControlMode: state.volumeControlMode,
+        splitScreenEnabled: state.splitScreenEnabled,
         shuffle: state.shuffle,
         repeat: state.repeat,
         clickSoundEnabled: state.clickSoundEnabled,
@@ -3733,6 +3886,13 @@
       if (typeof saved.skinIndex === 'number') {
         setSkinByIndex(saved.skinIndex, false);
       }
+      if (['light', 'dark'].includes(saved.theme)) state.theme = saved.theme;
+      if (['original', 'flat', 'carousel'].includes(saved.coverFlowStyle)) state.coverFlowStyle = saved.coverFlowStyle;
+      if (['small', 'medium', 'large'].includes(saved.wheelSize)) state.wheelSize = saved.wheelSize;
+      if (['low', 'medium', 'high'].includes(saved.wheelSensitivity)) state.wheelSensitivity = saved.wheelSensitivity;
+      if (typeof saved.touchScreenEnabled === 'boolean') state.touchScreenEnabled = saved.touchScreenEnabled;
+      if (['app', 'device'].includes(saved.volumeControlMode)) state.volumeControlMode = saved.volumeControlMode;
+      if (typeof saved.splitScreenEnabled === 'boolean') state.splitScreenEnabled = saved.splitScreenEnabled;
       if (typeof saved.shuffle === 'boolean') state.shuffle = saved.shuffle;
       if (['off', 'one', 'all'].includes(saved.repeat)) state.repeat = saved.repeat;
       if (typeof saved.clickSoundEnabled === 'boolean') state.clickSoundEnabled = saved.clickSoundEnabled;
@@ -4236,9 +4396,15 @@
     dom.lcdBezelSlot.style.height = `${Math.round(248 * lcdScale)}px`;
     dom.lcdBezel.style.transform = `scale(${lcdScale})`;
 
-    const wheelAvailW = window.innerWidth * 0.72;
-    const wheelAvailH = window.innerHeight * 0.42;
-    const wheelScale = Math.max(0.75, Math.min(wheelAvailW / 232, wheelAvailH / 232, 2.0));
+    const wheelAvailW = window.innerWidth * 0.78;
+    const wheelAvailH = window.innerHeight * 0.43;
+    const maxWheelScale = Math.max(0.6, Math.min(wheelAvailW / 232, wheelAvailH / 232, 2.1));
+    const sizeMultiplier = state.wheelSize === 'small'
+      ? 0.66
+      : state.wheelSize === 'medium'
+        ? 0.84
+        : 1.04;
+    const wheelScale = Math.max(0.55, Math.min(maxWheelScale * sizeMultiplier, maxWheelScale));
     dom.clickWheelSlot.style.width = `${Math.round(232 * wheelScale)}px`;
     dom.clickWheelSlot.style.height = `${Math.round(232 * wheelScale)}px`;
     dom.clickWheel.style.transform = `scale(${wheelScale})`;
@@ -4339,6 +4505,7 @@
     }
 
     loadPersistedState();
+    applyVisualSettings();
     state.playlist = [...state.songs];
     state.currentTrackIndex = 0;
     updateLibraryStats();

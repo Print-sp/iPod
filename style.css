@@ -20,6 +20,26 @@
   padding: 0;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+.center-button,
+.wheel-btn,
+.click-wheel,
+.hold-switch,
+.menu-item {
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+button:focus,
+button:focus-visible,
+.center-button:focus,
+.center-button:focus-visible,
+.wheel-btn:focus,
+.wheel-btn:focus-visible {
+  outline: none;
 }
 
 html,
@@ -1776,4 +1796,87 @@ body {
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* ==========================================================================
+   MODO TELA DE TOQUE DESATIVADA & TEMA ESCURO (CONFIGURAÇÕES DO IPOD)
+   ========================================================================== */
+
+#lcd-screen.touch-disabled .screen-viewport {
+  pointer-events: none;
+}
+
+#lcd-screen.theme-dark,
+#lcd-screen.theme-dark .screen-viewport,
+#lcd-screen.theme-dark .split-left,
+#lcd-screen.theme-dark .view-full-list,
+#lcd-screen.theme-dark .view-now-playing,
+#lcd-screen.theme-dark .view-photos {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+#lcd-screen.theme-dark .status-bar {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 50%, #0f172a 100%);
+  border-bottom-color: #334155;
+}
+
+#lcd-screen.theme-dark .status-title,
+#lcd-screen.theme-dark .battery-pct {
+  color: #f1f5f9;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+}
+
+#lcd-screen.theme-dark .split-left {
+  border-right-color: #334155;
+}
+
+#lcd-screen.theme-dark .split-right,
+#lcd-screen.theme-dark .view-coverflow,
+#lcd-screen.theme-dark .view-extra {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  color: #f8fafc;
+}
+
+#lcd-screen.theme-dark .menu-item {
+  color: #f1f5f9;
+  border-bottom-color: #1e293b;
+}
+
+#lcd-screen.theme-dark .menu-item-sub,
+#lcd-screen.theme-dark .menu-item-arrow,
+#lcd-screen.theme-dark .preview-label,
+#lcd-screen.theme-dark .cf-album-artist,
+#lcd-screen.theme-dark .clock-date {
+  color: #94a3b8;
+}
+
+#lcd-screen.theme-dark .menu-item.selected {
+  color: #ffffff;
+  border-bottom-color: #1d4ed8;
+}
+
+#lcd-screen.theme-dark .menu-item.selected .menu-item-sub,
+#lcd-screen.theme-dark .menu-item.selected .menu-item-arrow {
+  color: #ffffff;
+}
+
+#lcd-screen.theme-dark .np-title,
+#lcd-screen.theme-dark .np-track-index,
+#lcd-screen.theme-dark .np-time,
+#lcd-screen.theme-dark .cf-album-title,
+#lcd-screen.theme-dark .clock-time {
+  color: #f8fafc;
+}
+
+#lcd-screen.theme-dark .np-artist {
+  color: #cbd5e1;
+}
+
+#lcd-screen.theme-dark .np-album {
+  color: #94a3b8;
+}
+
+#lcd-screen.theme-dark .np-rating {
+  color: #fbbf24;
 }
