@@ -3815,6 +3815,59 @@
     }
   });
 
+  function initBatteryMonitor() {
+    const batIcon = document.getElementById('battery-icon');
+    const batFill = document.getElementById('battery-fill');
+    const batBolt = document.getElementById('battery-bolt');
+    const batPct = document.getElementById('battery-pct');
+    if (!batIcon || !batFill) return;
+
+    let showPct = true;
+    let lastPct = 100;
+    let isRealBattery = false;
+
+    batIcon.addEventListener('click', () => {
+      if (!isRealBattery || !batPct) return;
+      showPct = !showPct;
+      batPct.textContent = showPct ? `${lastPct}%` : '';
+    });
+
+    if (typeof navigator.getBattery !== 'function') {
+      batIcon.title = 'Bateria: 100% (API não suportada neste navegador)';
+      return;
+    }
+
+    navigator.getBattery().then((battery) => {
+      isRealBattery = true;
+      const updateBatteryUI = () => {
+        const level = typeof battery.level === 'number' ? battery.level : 1;
+        const pct = Math.max(0, Math.min(100, Math.round(level * 100)));
+        const charging = Boolean(battery.charging);
+        lastPct = pct;
+
+        batFill.style.width = `${Math.max(6, pct)}%`;
+        batFill.classList.remove('warn', 'low');
+        if (!charging && pct <= 12) {
+          batFill.classList.add('low');
+        } else if (!charging && pct <= 25) {
+          batFill.classList.add('warn');
+        }
+
+        if (batBolt) {
+          batBolt.classList.toggle('hidden', !charging);
+        }
+        if (batPct) {
+          batPct.textContent = showPct ? `${pct}%` : '';
+        }
+        batIcon.title = `Bateria: ${pct}%${charging ? ' (Carregando ⚡)' : ''}`;
+      };
+
+      updateBatteryUI();
+      battery.addEventListener('levelchange', updateBatteryUI);
+      battery.addEventListener('chargingchange', updateBatteryUI);
+    }).catch(() => {});
+  }
+
   function initIpod() {
     // Se aberto direto como file:// e o servidor local estiver rodando na porta 3456, redireciona automaticamente
     if (window.location.protocol === 'file:') {
@@ -3839,6 +3892,7 @@
     updateLibraryStats();
     updateNowPlayingUI();
     updateIpodScale();
+    initBatteryMonitor();
 
     // Inicia o menu raiz na pilha
     state.navStack = [buildRootMenu()];
