@@ -130,13 +130,19 @@
     repeat: 'off',  // 'off' | 'one' | 'all'
     skinIndex: 0,
     skins: [
-      { id: 'skin-silver', name: 'Prata', hex: '#d1d5db' },
-      { id: 'skin-black', name: 'Preto Clássico', hex: '#1f2937' },
-      { id: 'skin-white', name: 'Branco 5G', hex: '#f8fafc' },
-      { id: 'skin-pink', name: 'Rosa', hex: '#f472b6' },
-      { id: 'skin-red', name: 'Vermelho', hex: '#dc2626' },
-      { id: 'skin-yellow', name: 'Amarelo', hex: '#facc15' },
-      { id: 'skin-blue', name: 'Azul', hex: '#3b82f6' }
+      { id: 'skin-silver', name: 'Prata', hex: 'linear-gradient(145deg, #f3f4f6, #b2b8c2)' },
+      { id: 'skin-black', name: 'Preto', hex: 'linear-gradient(145deg, #6b7280, #1f2937)' },
+      { id: 'skin-oled-black', name: 'OLED preto', hex: '#000000' },
+      { id: 'skin-red', name: 'Vermelho', hex: 'linear-gradient(145deg, #ef4444, #991b1b)' },
+      { id: 'skin-orange', name: 'Laranja', hex: 'linear-gradient(145deg, #fdba74, #ea580c)' },
+      { id: 'skin-yellow', name: 'Amarelo', hex: 'linear-gradient(145deg, #fde047, #ca8a04)' },
+      { id: 'skin-gold', name: 'Ouro', hex: 'linear-gradient(145deg, #fde68a, #a16207)' },
+      { id: 'skin-lime', name: 'Lima', hex: 'linear-gradient(145deg, #bef264, #65a30d)' },
+      { id: 'skin-green', name: 'Verde', hex: 'linear-gradient(145deg, #86efac, #15803d)' },
+      { id: 'skin-blue', name: 'Azul', hex: 'linear-gradient(145deg, #60a5fa, #1d4ed8)' },
+      { id: 'skin-pink', name: 'Rosa', hex: 'linear-gradient(145deg, #f9a8d4, #db2777)' },
+      { id: 'skin-purple', name: 'Roxo', hex: 'linear-gradient(145deg, #c084fc, #6b21a8)' },
+      { id: 'skin-white', name: 'Branco', hex: 'linear-gradient(145deg, #ffffff, #cbd5e1)' }
     ],
 
     // Pilha de navegação de menus
@@ -612,16 +618,16 @@
 
   function buildColorMenu() {
     return {
-      title: 'Cor do iPod',
+      title: 'Cor do Dispositivo',
       split: false,
       selectedIndex: state.skinIndex,
       items: state.skins.map((skin, idx) => ({
         label: skin.name,
-        getSub: () => (state.skinIndex === idx ? '✓' : ''),
-        hasArrow: false,
+        colorDot: skin.hex,
+        hasArrow: true,
         action: () => {
           setSkinByIndex(idx);
-          renderCurrentMenu();
+          popMenu();
         }
       }))
     };
@@ -1436,10 +1442,7 @@
           label: 'Cor do Dispositivo',
           getSub: () => state.skins[state.skinIndex].name,
           hasArrow: false,
-          action: () => {
-            cycleSkin();
-            renderCurrentMenu();
-          }
+          action: () => pushMenu(buildColorMenu())
         },
         {
           label: 'Tamanho da Click Wheel',
@@ -1906,6 +1909,13 @@
     menu.items.forEach((item, idx) => {
       const li = document.createElement('li');
       li.className = 'menu-item' + (idx === menu.selectedIndex ? ' selected' : '');
+
+      if (item.colorDot) {
+        const dotSpan = document.createElement('span');
+        dotSpan.className = 'menu-color-dot';
+        dotSpan.style.background = item.colorDot;
+        li.appendChild(dotSpan);
+      }
 
       const labelSpan = document.createElement('span');
       labelSpan.className = 'menu-item-label';
