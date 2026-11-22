@@ -1,0 +1,34 @@
+name: Sync static site for Hostinger
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  sync-static-site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Publish only static files to deployment branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hostinger-static
+          mkdir -p /tmp/hostinger-static
+          cp app.js icon-192.png icon-512.png index.html manifest.json style.css sw.js /tmp/hostinger-static/
+          cd /tmp/hostinger-static
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Sync static site from main ${GITHUB_SHA}"
+          git branch -M hostinger-static-root
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin hostinger-static-root
