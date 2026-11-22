@@ -4,7 +4,7 @@
   "description": "iPod Classic Virtual - Central de Mídia (Músicas, Vídeos, Fotos, Cover Flow, YouTube, Jogos e Extras) para Web e Desktop",
   "main": "electron-main.js",
   "scripts": {
-    "start": "node server.js --open",
+    "start": "node server.js",
     "electron": "electron ."
   },
   "keywords": [
