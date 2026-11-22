@@ -117,6 +117,7 @@
   const state = {
     locked: false,
     clickSoundEnabled: true,
+    vibrateEnabled: true,
     backlightOn: true,
     shuffle: false, // false | 'songs'
     repeat: 'off',  // 'off' | 'one' | 'all'
@@ -438,10 +439,20 @@
   };
 
   // --------------------------------------------------------------------------
-  // 4. EFEITO SONORO CLÁSSICO DA CLICK WHEEL (PIEZO CLICKER)
+  // 4. EFEITO SONORO & VIBRAÇÃO TÁTIL DA CLICK WHEEL (PIEZO CLICKER + HAPTIC)
   // --------------------------------------------------------------------------
   let audioCtx = null;
-  function playWheelClick() {
+  function triggerHapticPulse(durationMs = 10) {
+    if (!state.vibrateEnabled) return;
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(durationMs);
+      }
+    } catch (_) {}
+  }
+
+  function playWheelClick(hapticMs = 10) {
+    triggerHapticPulse(hapticMs);
     if (!state.clickSoundEnabled) return;
     try {
       if (!audioCtx) {
@@ -450,19 +461,37 @@
       if (audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
+      const now = audioCtx.currentTime;
+
+      // 1. Estalo agudo característico do piezo interno do iPod Classic
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(1750, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(320, audioCtx.currentTime + 0.009);
+      osc.frequency.setValueAtTime(1750, now);
+      osc.frequency.exponentialRampToValueAtTime(320, now + 0.009);
 
-      gain.gain.setValueAtTime(0.16, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.009);
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.009);
 
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.01);
+      osc.start(now);
+      osc.stop(now + 0.01);
+
+      // 2. Pulso grave sub-tátil curto (sensação física do motor tátil no alto-falante)
+      const thumpOsc = audioCtx.createOscillator();
+      const thumpGain = audioCtx.createGain();
+      thumpOsc.type = 'sine';
+      thumpOsc.frequency.setValueAtTime(95, now);
+      thumpOsc.frequency.exponentialRampToValueAtTime(38, now + 0.012);
+
+      thumpGain.gain.setValueAtTime(0.22, now);
+      thumpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.012);
+
+      thumpOsc.connect(thumpGain);
+      thumpGain.connect(audioCtx.destination);
+      thumpOsc.start(now);
+      thumpOsc.stop(now + 0.013);
     } catch (_) {
       // Ignorar caso o navegador ainda não tenha desbloqueado áudio
     }
@@ -1354,6 +1383,17 @@
           hasArrow: false,
           action: () => {
             state.clickSoundEnabled = !state.clickSoundEnabled;
+            savePersistedState();
+            renderCurrentMenu();
+          }
+        },
+        {
+          label: 'Vibração da Roda',
+          getSub: () => (state.vibrateEnabled ? 'Ligada' : 'Desl.'),
+          hasArrow: false,
+          action: () => {
+            state.vibrateEnabled = !state.vibrateEnabled;
+            if (state.vibrateEnabled) triggerHapticPulse(18);
             savePersistedState();
             renderCurrentMenu();
           }
@@ -2824,7 +2864,7 @@
 
   function onCenterSelect() {
     if (state.locked) return;
-    playWheelClick();
+    playWheelClick(16);
 
     if (state.currentView === 'split' || state.currentView === 'full') {
       const menu = currentMenu();
@@ -2919,7 +2959,7 @@
   dom.btnMenu.addEventListener('click', (e) => {
     e.stopPropagation();
     if (state.locked) return;
-    playWheelClick();
+    playWheelClick(16);
     popMenu();
   });
 
@@ -2935,19 +2975,20 @@
 
   dom.btnNext.addEventListener('click', (e) => {
     e.stopPropagation();
-    playWheelClick();
+    playWheelClick(16);
     nextTrack();
   });
 
   dom.btnPrev.addEventListener('click', (e) => {
     e.stopPropagation();
-    playWheelClick();
+    playWheelClick(16);
     prevTrack();
   });
 
   // Chave HOLD no topo do iPod
   dom.holdSwitch.addEventListener('click', () => {
     state.locked = !state.locked;
+    triggerHapticPulse(20);
     dom.holdSwitch.classList.toggle('locked', state.locked);
     dom.statusLock.classList.toggle('hidden', !state.locked);
   });
@@ -3613,6 +3654,7 @@
         shuffle: state.shuffle,
         repeat: state.repeat,
         clickSoundEnabled: state.clickSoundEnabled,
+        vibrateEnabled: state.vibrateEnabled,
         deletedBuiltinIds: state.deletedBuiltinIds,
         songEdits: state.songEdits,
         songEditsByName: state.songEditsByName,
@@ -3638,6 +3680,7 @@
       if (typeof saved.shuffle === 'boolean') state.shuffle = saved.shuffle;
       if (['off', 'one', 'all'].includes(saved.repeat)) state.repeat = saved.repeat;
       if (typeof saved.clickSoundEnabled === 'boolean') state.clickSoundEnabled = saved.clickSoundEnabled;
+      if (typeof saved.vibrateEnabled === 'boolean') state.vibrateEnabled = saved.vibrateEnabled;
 
       if (Array.isArray(saved.deletedBuiltinIds)) {
         state.deletedBuiltinIds = saved.deletedBuiltinIds.filter((id) => typeof id === 'string');
