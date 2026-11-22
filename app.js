@@ -604,7 +604,7 @@
         {
           label: 'Reproduzindo',
           previewType: 'nowplaying',
-          action: () => showView('now-playing', 'Now Playing')
+          action: () => showView('now-playing', 'Reproduzindo Agora')
         }
       ]
     };
@@ -1697,8 +1697,6 @@
     if (mode === 'song') {
       const wrap = document.querySelector('.np-artwork-wrap');
       if (wrap) {
-        dom.npArtwork.classList.add('hidden');
-        dom.npArtworkReflection.classList.add('hidden');
         const fallbackBox = document.createElement('div');
         fallbackBox.id = 'np-yt-fallback';
         fallbackBox.className = 'np-yt-fallback';
@@ -2067,7 +2065,7 @@
     state.playlist = [...songsArray];
     state.currentTrackIndex = startIndex;
     loadAndPlayCurrentTrack();
-    showView('now-playing', 'Now Playing');
+    showView('now-playing', 'Reproduzindo Agora');
   }
 
   function startShuffleAll() {
@@ -2141,16 +2139,36 @@
     });
   }
 
+  function setNowPlayingMarqueeTitle(rawTitle) {
+    const text = rawTitle || 'Sem Título';
+    dom.npTitle.innerHTML = '';
+    if (text.length > 12) {
+      dom.npTitle.classList.add('marquee');
+      const s1 = document.createElement('span');
+      s1.textContent = text;
+      const spacer = document.createElement('span');
+      spacer.className = 'np-title-spacer';
+      const s2 = document.createElement('span');
+      s2.textContent = text;
+      dom.npTitle.appendChild(s1);
+      dom.npTitle.appendChild(spacer);
+      dom.npTitle.appendChild(s2);
+    } else {
+      dom.npTitle.classList.remove('marquee');
+      dom.npTitle.textContent = text;
+    }
+  }
+
   function updateNowPlayingUI() {
     const track = state.playlist[state.currentTrackIndex] || state.songs[0];
     if (!track) {
       dom.npArtwork.src = jackCover;
       dom.npArtworkReflection.src = jackCover;
-      dom.npTitle.textContent = 'Sem Músicas';
+      setNowPlayingMarqueeTitle('Sem Músicas');
       dom.npArtist.textContent = 'Adicione músicas ou links';
       dom.npAlbum.textContent = 'iPod Classic';
       dom.npRating.textContent = '☆☆☆☆☆';
-      dom.npTrackIndex.textContent = '0 of 0';
+      dom.npTrackIndex.textContent = '0 de 0';
       dom.npShuffleBadge.textContent = '';
       dom.npRepeatBadge.textContent = '';
       if (dom.npEditBtn) dom.npEditBtn.classList.add('hidden');
@@ -2164,7 +2182,7 @@
     const coverUrl = track.cover || jackCover;
     dom.npArtwork.src = coverUrl;
     dom.npArtworkReflection.src = coverUrl;
-    dom.npTitle.textContent = track.title || 'Sem Título';
+    setNowPlayingMarqueeTitle(track.title || 'Sem Título');
     dom.npArtist.textContent = track.artist || 'Artista Desconhecido';
     dom.npAlbum.textContent = track.album || 'iPod Classic';
 
@@ -2173,7 +2191,7 @@
     dom.npRating.classList.toggle('editing', state.npMode === 'rating');
 
     const total = state.playlist.length || state.songs.length;
-    dom.npTrackIndex.textContent = `${state.currentTrackIndex + 1} of ${total}`;
+    dom.npTrackIndex.textContent = `${state.currentTrackIndex + 1} de ${total}`;
 
     dom.npShuffleBadge.textContent = state.shuffle ? '🔀 Shuffle' : '';
     dom.npRepeatBadge.textContent = state.repeat !== 'off' ? `🔁 ${state.repeat === 'one' ? '1' : 'All'}` : '';
@@ -4389,15 +4407,15 @@
   function updateIpodScale() {
     if (!dom.lcdBezelSlot || !dom.lcdBezel || !dom.clickWheelSlot || !dom.clickWheel) return;
 
-    const availW = window.innerWidth - 24;
-    const availH = window.innerHeight * 0.46;
-    const lcdScale = Math.max(0.75, Math.min(availW / 328, availH / 248, 2.2));
+    const availW = window.innerWidth - 16;
+    const availH = window.innerHeight * 0.51;
+    const lcdScale = Math.max(0.75, Math.min(availW / 328, availH / 276, 2.35));
     dom.lcdBezelSlot.style.width = `${Math.round(328 * lcdScale)}px`;
-    dom.lcdBezelSlot.style.height = `${Math.round(248 * lcdScale)}px`;
+    dom.lcdBezelSlot.style.height = `${Math.round(276 * lcdScale)}px`;
     dom.lcdBezel.style.transform = `scale(${lcdScale})`;
 
     const wheelAvailW = window.innerWidth * 0.78;
-    const wheelAvailH = window.innerHeight * 0.43;
+    const wheelAvailH = window.innerHeight * 0.42;
     const maxWheelScale = Math.max(0.6, Math.min(wheelAvailW / 232, wheelAvailH / 232, 2.1));
     const sizeMultiplier = state.wheelSize === 'small'
       ? 0.66
