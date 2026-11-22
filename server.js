@@ -393,6 +393,14 @@ if (require.main === module) {
       exec(`start "" "${url}"`);
     }
   });
+} else {
+  // Hostinger loads the entry file as a module and expects the app to bind
+  // to the port provided by the hosting environment.
+  const hostingerPort = Number(process.env.PORT) || 3456;
+  startLocalServer(hostingerPort).catch((error) => {
+    console.error('Falha ao iniciar o servidor:', error);
+    process.exitCode = 1;
+  });
 }
 
 module.exports = { startLocalServer };
