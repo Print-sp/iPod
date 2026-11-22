@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#dcdfe4">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>iPod Classic</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Inputs de arquivos ocultos acionados pelo próprio Menu do iPod -->
+    <input type="file" id="file-input" multiple accept="audio/*,video/*,image/*,.json" hidden>
+    <input type="file" id="folder-input" webkitdirectory directory multiple hidden>
+    <input type="file" id="backup-input" accept=".json,application/json" hidden>
+
+    <!-- Área Principal contendo APENAS o iPod Classic -->
+    <main class="ipod-stage" id="drop-zone">
+      <div class="ipod-shell skin-silver" id="ipod-shell">
+        <!-- Chave Hold / Indicador -->
+        <div class="ipod-top-edge">
+          <button class="hold-switch" id="hold-switch" title="Travar/Destravar iPod (Hold)">
+            <span class="hold-orange"></span>
+            <span class="hold-knob"></span>
+          </button>
+        </div>
+
+        <!-- Moldura da Tela LCD 320x240 -->
+        <div class="lcd-bezel-slot" id="lcd-bezel-slot">
+          <div class="lcd-bezel" id="lcd-bezel">
+            <div class="lcd-screen" id="lcd-screen">
+            <!-- Barra de Status Superior Estilo iPod OS -->
+            <div class="status-bar" id="status-bar">
+              <div class="status-left">
+                <span class="lock-icon hidden" id="status-lock">🔒</span>
+                <span class="status-title" id="status-title">iPod</span>
+              </div>
+              <div class="status-right">
+                <span class="play-state-icon" id="status-play-icon"></span>
+                <div class="battery-icon" id="battery-icon" title="Bateria: 100%">
+                  <span class="battery-pct" id="battery-pct"></span>
+                  <div class="battery-body">
+                    <div class="battery-fill" id="battery-fill"></div>
+                    <span class="battery-bolt hidden" id="battery-bolt">⚡</span>
+                  </div>
+                  <div class="battery-tip"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Conteúdo Dinâmico da Tela -->
+            <div class="screen-viewport" id="screen-viewport">
+              <!-- VIEW 1: SPLIT SCREEN (Menus Clássicos da 6ª Geração) -->
+              <div class="view-split active" id="view-split">
+                <div class="split-left">
+                  <ul class="menu-list" id="menu-list"></ul>
+                </div>
+                <div class="split-right" id="split-preview"></div>
+              </div>
+
+              <!-- VIEW 2: FULL MENU (Listas longas, músicas, cores, busca, notas) -->
+              <div class="view-full-list hidden" id="view-full-list">
+                <ul class="menu-list full" id="full-menu-list"></ul>
+              </div>
+
+              <!-- VIEW 3: NOW PLAYING (Igual à foto de referência Jack Johnson!) -->
+              <div class="view-now-playing hidden" id="view-now-playing">
+                <div class="np-main">
+                  <div class="np-artwork-wrap">
+                    <img id="np-artwork" src="" alt="Album Art" class="np-artwork">
+                    <img id="np-artwork-reflection" src="" alt="" class="np-artwork-reflection">
+                  </div>
+                  <div class="np-meta">
+                    <div class="np-title-wrap">
+                      <h2 class="np-title" id="np-title">If I Had Eyes</h2>
+                    </div>
+                    <p class="np-artist" id="np-artist">Jack Johnson</p>
+                    <p class="np-album" id="np-album">Sleep Through the Static</p>
+                    <div class="np-rating" id="np-rating" title="Pressione o botão central para avaliar">★★★★★</div>
+                    <p class="np-track-index" id="np-track-index">1 de 8</p>
+                    <div class="np-badges">
+                      <span class="np-badge" id="np-shuffle-badge"></span>
+                      <span class="np-badge" id="np-repeat-badge"></span>
+                      <button type="button" class="np-edit-btn" id="np-edit-btn" title="Editar música / capa / álbum / artista">✏️ Editar</button>
+                      <button type="button" class="np-delete-btn" id="np-delete-btn" title="Excluir esta música">🗑️</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Barra inferior de progresso / volume / scrubber -->
+                <div class="np-bottom">
+                  <div class="np-scrubber-row" id="np-time-row">
+                    <span class="np-time" id="np-current-time">0:00</span>
+                    <div class="ipod-progress-bar" id="np-progress-container">
+                      <div class="ipod-progress-fill" id="np-progress-fill"></div>
+                      <div class="ipod-scrubber-diamond hidden" id="np-scrubber-diamond"></div>
+                    </div>
+                    <span class="np-time" id="np-remaining-time">-0:00</span>
+                  </div>
+
+                  <!-- Barra de Volume sobreposta ao girar a roda no Now Playing -->
+                  <div class="np-volume-row hidden" id="np-volume-row">
+                    <span class="vol-icon">🔈</span>
+                    <div class="ipod-progress-bar volume-bar">
+                      <div class="ipod-progress-fill" id="np-volume-fill"></div>
+                    </div>
+                    <span class="vol-icon">🔊</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- VIEW 4: COVER FLOW 3D -->
+              <div class="view-coverflow hidden" id="view-coverflow">
+                <div class="cf-stage" id="cf-stage"></div>
+                <div class="cf-caption">
+                  <div class="cf-album-title" id="cf-album-title">Album</div>
+                  <div class="cf-album-artist" id="cf-album-artist">Artist</div>
+                </div>
+              </div>
+
+              <!-- VIEW 5: VIDEO PLAYER (MP4/WebM + YouTube Embed) -->
+              <div class="view-video hidden" id="view-video">
+                <video id="ipod-video" playsinline crossorigin="anonymous"></video>
+                <div id="yt-player-wrap" class="yt-player-wrap hidden">
+                  <div id="yt-player-frame"></div>
+                </div>
+                <div class="video-hud" id="video-hud">
+                  <div class="video-title" id="video-title">Vídeo</div>
+                  <div class="np-scrubber-row">
+                    <span class="np-time" id="vid-current-time">0:00</span>
+                    <div class="ipod-progress-bar" id="vid-progress-container">
+                      <div class="ipod-progress-fill" id="vid-progress-fill"></div>
+                    </div>
+                    <span class="np-time" id="vid-remaining-time">-0:00</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- VIEW 6: PHOTOS (Grade + Visualizador / Slideshow) -->
+              <div class="view-photos hidden" id="view-photos">
+                <div class="photo-grid" id="photo-grid"></div>
+                <div class="photo-viewer hidden" id="photo-viewer">
+                  <img id="photo-full-img" src="" alt="Foto">
+                  <div class="photo-caption-bar" id="photo-caption-bar">
+                    <span id="photo-title">Foto</span>
+                    <span id="photo-counter">1 / 6</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- VIEW 7: JOGO BRICK (Breakout Clássico do iPod) -->
+              <div class="view-game hidden" id="view-game">
+                <canvas id="game-canvas" width="320" height="244"></canvas>
+              </div>
+
+              <!-- VIEW 8: EXTRAS (Relógio, Notas, Sobre) -->
+              <div class="view-extra hidden" id="view-extra">
+                <div class="extra-content" id="extra-content"></div>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
+
+        <!-- CLICK WHEEL CLÁSSICA INTERATIVA -->
+        <div class="click-wheel-area">
+          <div class="click-wheel-slot" id="click-wheel-slot">
+            <div class="click-wheel" id="click-wheel">
+            <button class="wheel-btn wheel-menu" id="btn-menu" title="Menu (Tecla Esc ou Backspace)">MENU</button>
+            <button class="wheel-btn wheel-prev" id="btn-prev" title="Anterior / Retroceder (Seta Esquerda)">
+              <svg viewBox="0 0 24 14" width="20" height="12" fill="currentColor">
+                <rect x="0" y="1" width="3" height="12"/>
+                <polygon points="12,1 3,7 12,13"/>
+                <polygon points="21,1 12,7 21,13"/>
+              </svg>
+            </button>
+            <button class="wheel-btn wheel-next" id="btn-next" title="Próxima / Avançar (Seta Direita)">
+              <svg viewBox="0 0 24 14" width="20" height="12" fill="currentColor">
+                <polygon points="0,1 9,7 0,13"/>
+                <polygon points="9,1 18,7 9,13"/>
+                <rect x="18" y="1" width="3" height="12"/>
+              </svg>
+            </button>
+            <button class="wheel-btn wheel-play" id="btn-play" title="Reproduzir / Pausar (Barra de Espaço)">
+              <svg viewBox="0 0 24 14" width="20" height="12" fill="currentColor">
+                <polygon points="1,1 11,7 1,13"/>
+                <rect x="14" y="1" width="3" height="12"/>
+                <rect x="19" y="1" width="3" height="12"/>
+              </svg>
+            </button>
+
+            <!-- Botão Central (Select) -->
+            <button class="center-button" id="btn-select" title="Selecionar (Enter)"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL: ADICIONAR LINK DO YOUTUBE OU MÍDIA ONLINE -->
+  <div class="modal-backdrop hidden" id="online-modal">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2>▶️ YouTube & Mídia Online</h2>
+        <button class="modal-close" id="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <section class="modal-section">
+          <h3>▶️ Executar Link do YouTube ou Mídia Online (MP3 / MP4 / Foto)</h3>
+          <p class="modal-hint" id="yt-protocol-warning"></p>
+          <div class="form-grid">
+            <select id="custom-media-type">
+              <option value="youtube-video">▶️ YouTube — Assistir Vídeo na Tela do iPod</option>
+              <option value="youtube-song">🎵 YouTube — Ouvir como Música (Tela Now Playing com Capa)</option>
+              <option value="song">🎵 Link Direto de Música / Rádio Stream (MP3/AAC/OGG)</option>
+              <option value="video">🎬 Link Direto de Vídeo (MP4/WebM)</option>
+              <option value="photo">🖼️ Link Direto de Foto (JPG/PNG/WebP)</option>
+            </select>
+            <input type="url" id="custom-media-url" placeholder="Cole aqui o link do YouTube (https://youtube.com/watch?v=...) ou MP3/MP4">
+            <input type="text" id="custom-media-title" placeholder="Título (preenchido automático p/ YouTube)">
+            <input type="text" id="custom-media-artist" placeholder="Artista / Canal (automático p/ YouTube)">
+            <input type="text" id="custom-media-album" placeholder="Álbum (ex: YouTube Music)">
+            <input type="url" id="custom-media-cover" placeholder="URL da Capa (automático p/ YouTube)">
+          </div>
+          <button class="primary-btn full-width" id="btn-add-custom-url">▶️ Adicionar e Tocar no iPod</button>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EDITAR MÚSICA / CAPA (MÚSICA, ÁLBUM, ARTISTA) -->
+  <div class="modal-backdrop hidden" id="edit-song-modal">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2>✏️ Editar Música & Capa (Thumb)</h2>
+        <button class="modal-close" id="btn-close-edit-song">✕</button>
+      </div>
+      <div class="modal-body">
+        <section class="modal-section">
+          <div class="edit-song-top">
+            <div class="edit-cover-preview-box">
+              <img id="edit-song-cover-preview" src="" alt="Preview da Capa">
+              <label class="upload-thumb-btn" for="edit-song-cover-file">📷 Escolher Imagem</label>
+              <input type="file" id="edit-song-cover-file" accept="image/*" hidden>
+            </div>
+            <div class="edit-song-fields">
+              <label class="field-label" for="edit-song-select">Música selecionada:</label>
+              <select id="edit-song-select"></select>
+              <input type="text" id="edit-song-title" placeholder="Título da Música">
+              <input type="text" id="edit-song-artist" placeholder="Nome do Artista">
+              <input type="text" id="edit-song-album" placeholder="Nome do Álbum">
+            </div>
+          </div>
+
+          <div class="form-grid" style="margin-top: 10px;">
+            <input type="url" id="edit-song-cover-url" placeholder="Ou cole aqui a URL de uma imagem (https://...)">
+            <select id="edit-song-cover-scope">
+              <option value="song">🖼️ Aplicar esta capa (thumb) apenas nesta música</option>
+              <option value="album">💿 Aplicar esta capa em todas as músicas deste Álbum</option>
+              <option value="artist">🎤 Aplicar esta capa em todas as músicas deste Artista</option>
+            </select>
+          </div>
+
+          <button class="primary-btn full-width" id="btn-save-edit-song">💾 Salvar Alterações</button>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CRIAR / EDITAR PLAYLIST -->
+  <div class="modal-backdrop hidden" id="playlist-modal">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2 id="playlist-modal-title">🎶 Criar Nova Playlist</h2>
+        <button class="modal-close" id="btn-close-playlist-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <section class="modal-section">
+          <input type="hidden" id="playlist-edit-id" value="">
+          <div class="form-grid">
+            <input type="text" id="playlist-name-input" placeholder="Nome da Playlist (ex: Favoritas, Treino, Rock...)" style="grid-column: span 2;">
+          </div>
+          <div class="playlist-Bulk-actions">
+            <span>Selecione as músicas da playlist:</span>
+            <div>
+              <button type="button" class="mini-action-btn" id="btn-playlist-select-all">Marcar Todas</button>
+              <button type="button" class="mini-action-btn" id="btn-playlist-clear-all">Limpar</button>
+            </div>
+          </div>
+          <div class="playlist-songs-checklist" id="playlist-songs-checklist"></div>
+          <button class="primary-btn full-width" id="btn-save-playlist">💾 Salvar Playlist</button>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Elemento de áudio oculto para reprodução de músicas -->
+  <audio id="ipod-audio" crossorigin="anonymous"></audio>
+
+  <script src="app.js"></script>
+</body>
+</html>
